@@ -19,8 +19,8 @@ public sealed class InputPoller
             if (Console.KeyAvailable)
             {
                 var keyInfo = Console.ReadKey(true);
-                var inputEvent = new InputEvent();
-
+                var inputEvent = new InputEvent(keyInfo, DateTimeOffset.UtcNow);
+                _inputWriter.TryWrite(inputEvent);
             }
             else
             {

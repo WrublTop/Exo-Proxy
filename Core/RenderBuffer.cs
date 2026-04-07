@@ -54,7 +54,7 @@ public sealed class RenderBuffer : IRenderBuffer
     public string Flush()
     {
         _sb.Clear();
-        _sb.Append(ExoCodes.MoveTo(0, 0));
+        _sb.Append(ExoCodes.MoveTo(1, 1));
 
         string? lastColor = null;
 

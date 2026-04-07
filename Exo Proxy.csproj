@@ -9,11 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Engine\" />
     <Folder Include="Data\" />
     <Folder Include="Presentation\Animation\" />
     <Folder Include="Presentation\Visuals\" />
-    <Folder Include="Presentation\Screens\" />
   </ItemGroup>
 
 </Project>
