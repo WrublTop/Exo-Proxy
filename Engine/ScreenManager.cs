@@ -18,9 +18,10 @@ public sealed class ScreenManager
         _screens.Add(screen);
     }
 
-    public void SetActive(IScreen screen)
+    public void SetActive(IScreen screen, CancellationToken ct = default)
     {
         _activeScreen = screen;
+        _ = screen.OnEnterAsync(ct);
     }
 
     public void Update(GameTime gt, InputEvent? input)
@@ -33,3 +34,4 @@ public sealed class ScreenManager
         _activeScreen?.Render(buffer);
     }
 }
+

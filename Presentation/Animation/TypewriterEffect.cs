@@ -18,6 +18,7 @@ public sealed class TypewriterEffect
     public void Update(GameTime gt)
     {
         var timeElapsed = DateTimeOffset.UtcNow - _lastUpdate;
+
         if (timeElapsed >= TimeSpan.FromMilliseconds(50))
         {
             _currentIndex++;
