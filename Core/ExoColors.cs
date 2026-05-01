@@ -2,8 +2,10 @@
 
 public static class ExoColors
 {
-    public static readonly string ColorAmber = ExoCodes.Fg(255, 176, 0);
-    public static readonly string ColorGreen = ExoCodes.Fg(51, 255, 51);
+    public static readonly string ColorAmber    = ExoCodes.Fg(255, 176,  0);
+    public static readonly string ColorAmberDim = ExoCodes.Fg(120,  83,  0);
+    public static readonly string ColorGreen    = ExoCodes.Fg( 51, 255, 51);
+    public static readonly string ColorError    = ExoCodes.Fg(204,  34,  0);
 
     public static string[] GenerateFade((int r, int g, int b) from, (int r, int g, int b) to, int steps)
     {
