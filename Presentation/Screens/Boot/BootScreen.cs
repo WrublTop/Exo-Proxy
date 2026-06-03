@@ -1,4 +1,5 @@
 ﻿using ExoProxy.Core;
+using ExoProxy.Data;
 
 namespace ExoProxy.Presentation.Screens.Boot;
 
@@ -8,13 +9,23 @@ public sealed class BootScreen : IScreen
 
     private readonly List<IBootPhase> _phases;
     private int _currentPhase;
+    private readonly OperatorRegistry _registry;
+
+    public OperatorAccount? LoggedInAccount =>
+        (_phases.OfType<LoginPhase>().FirstOrDefault())?.LoggedInAccount;
 
     public BootScreen()
     {
+        _registry = new OperatorRegistry();
+        _registry.Load();
+
+        var loginPhase = new LoginPhase(_registry);
         _phases =
         [
             new CrtWarmupPhase(),
             new BiosHeaderPhase(),
+            loginPhase,
+            new QlinkHandshakePhase(loginPhase),
         ];
         _currentPhase = 0;
     }

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Exo Proxy": {
+      "commandName": "Project",
+      "workingDirectory": "$(ProjectDir)"
+    }
+  }
+}

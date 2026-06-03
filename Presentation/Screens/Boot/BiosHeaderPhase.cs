@@ -1,4 +1,4 @@
-using ExoProxy.Core;
+﻿using ExoProxy.Core;
 
 namespace ExoProxy.Presentation.Screens.Boot;
 
@@ -76,7 +76,6 @@ public sealed class BiosHeaderPhase : IBootPhase
     private bool _blinkVisible;
     private int _blinkInterval;
     private DateTimeOffset _blinkTimer;
-    private DateTimeOffset _doneTimer;
 
     public bool IsDone { get; private set; }
 
@@ -156,12 +155,15 @@ public sealed class BiosHeaderPhase : IBootPhase
         for (int i = 0; i < _biosLines.Length; i++)
             buffer.WriteAt(1, 1 + i, _biosLines[i], ExoColors.ColorAmber);
 
+        // Uncomment the block below to show the SUIRDC logo in the top-right corner during BIOS header.
+        /*
         if (_flickerVisible)
         {
             int logoX = buffer.Width - 40;
             for (int i = 0; i < _logoLines.Length; i++)
                 buffer.WriteAt(logoX, 4 + i, _logoLines[i], ExoColors.ColorAmberDim);
         }
+        */
 
         buffer.WriteAt(1, DetectStartRow - 1, _detectHeader, ExoColors.ColorAmber);
 
@@ -212,9 +214,9 @@ public sealed class BiosHeaderPhase : IBootPhase
 
     private static string ResultColor(string result) => result switch
     {
-        "NO SIGNAL"                    => ExoColors.ColorError,
-        "NOT INSTALLED" or "NONE"      => ExoColors.ColorAmberDim,
-        _                              => ExoColors.ColorAmber,
+        "NO SIGNAL" => ExoColors.ColorError,
+        "NOT INSTALLED" or "NONE" => ExoColors.ColorAmberDim,
+        _ => ExoColors.ColorAmber,
     };
 
     private void StartFlicker(DateTimeOffset now)

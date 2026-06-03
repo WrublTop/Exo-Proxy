@@ -1,6 +1,6 @@
 ﻿using ExoProxy.Core;
 using ExoProxy.Engine;
-using ExoProxy.Presentation.Screens;
+using ExoProxy.Presentation.Screens.Boot;
 using System.Threading.Channels;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -21,9 +21,18 @@ Console.Clear();
 
 var bootScreen = new BootScreen();
 screenManager.AddScreen(bootScreen);
-screenManager.SetActive(bootScreen);
+await screenManager.SetActiveAsync(bootScreen, cts.Token);
 
 var inputTask = Task.Run(() => inputPoller.PollAsync(cts.Token));
 var gameTask = Task.Run(() => gameLoop.RunAsync(cts.Token));
 
-await Task.WhenAll(inputTask, gameTask);
+try
+{
+    await Task.WhenAll(inputTask, gameTask);
+}
+catch (OperationCanceledException) { }
+catch (Exception ex)
+{
+    Console.Clear();
+    Console.WriteLine($"Fatal error: {ex.Message}");
+}

@@ -22,14 +22,20 @@ public sealed class RenderBuffer : IRenderBuffer
 
     public void WriteAt(int x, int y, string text)
     {
+        if (y < 0 || y >= Height) return;
         for (int i = 0; i < text.Length && x + i < Width; i++)
+        {
+            if (x + i < 0) continue;
             _chars[x + i, y] = text[i];
+        }
     }
 
     public void WriteAt(int x, int y, string text, string ansiColor)
     {
+        if (y < 0 || y >= Height) return;
         for (int i = 0; i < text.Length && x + i < Width; i++)
         {
+            if (x + i < 0) continue;
             _chars[x + i, y] = text[i];
             _colors[x + i, y] = ansiColor;
         }
@@ -37,6 +43,7 @@ public sealed class RenderBuffer : IRenderBuffer
 
     public void WriteRaw(int x, int y, string rawAnsiString)
     {
+        if (x < 0 || x >= Width || y < 0 || y >= Height) return;
         _chars[x, y] = '\0';
         _colors[x, y] = rawAnsiString;
     }

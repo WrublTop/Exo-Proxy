@@ -32,11 +32,15 @@ public sealed class GameLoop
             totalTime += delta;
             var gt = new GameTime(totalTime, delta);
 
-            InputEvent? inputEvent = null;
+            var events = new List<InputEvent>();
             while (_input.TryRead(out var ie))
-                inputEvent = ie;
+                events.Add(ie);
 
-            _screenManager.Update(gt, inputEvent);
+            if (events.Count == 0)
+                _screenManager.Update(gt, null);
+            else
+                foreach (var ev in events)
+                    _screenManager.Update(gt, ev);
 
             _buffer.Clear();
             _screenManager.Render(_buffer);
