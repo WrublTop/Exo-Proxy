@@ -2,7 +2,7 @@
 
 namespace ExoProxy.Presentation.Animation;
 
-public sealed class TypewriterEffect
+public sealed class TypewriterEffect : IVisualEffect
 {
     private readonly string _fullText;
     private int _currentIndex;
@@ -31,6 +31,3 @@ public sealed class TypewriterEffect
 
     public bool IsDone => _currentIndex >= _fullText.Length;
 }
-
-
-

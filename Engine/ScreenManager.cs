@@ -4,22 +4,12 @@ namespace ExoProxy.Engine;
 
 public sealed class ScreenManager
 {
-    private readonly List<IScreen> _screens;
     private IScreen? _activeScreen;
-
-    public ScreenManager()
-    {
-        _screens = new List<IScreen>();
-        _activeScreen = null;
-    }
-
-    public void AddScreen(IScreen screen)
-    {
-        _screens.Add(screen);
-    }
 
     public async Task SetActiveAsync(IScreen screen, CancellationToken ct = default)
     {
+        if (_activeScreen is not null)
+            await _activeScreen.OnExitAsync(ct);
         _activeScreen = screen;
         await screen.OnEnterAsync(ct);
     }

@@ -77,6 +77,13 @@ public class OperatorRegistry
         return account;
     }
 
+    public void ResetToDefaults()
+    {
+        Accounts = [.. _defaults];
+        Sort();
+        Save();
+    }
+
     private void Sort()
     {
         Accounts.Sort((a, b) => StatusOrder(a.Status).CompareTo(StatusOrder(b.Status)));

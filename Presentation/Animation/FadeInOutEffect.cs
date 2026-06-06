@@ -1,7 +1,8 @@
 ﻿using ExoProxy.Core;
+
 namespace ExoProxy.Presentation.Animation;
 
-public sealed class FadeInOutEffect
+public sealed class FadeInOutEffect : IVisualEffect
 {
     private enum FadeState { FadingIn, Holding, FadingOut, Done }
     private FadeState _state;
@@ -63,5 +64,3 @@ public sealed class FadeInOutEffect
         _state = FadeState.FadingOut;
     }
 }
-
-

@@ -1,4 +1,4 @@
-﻿using ExoProxy.Core;
+using ExoProxy.Core;
 namespace ExoProxy.Presentation.Screens.Boot;
 
 
@@ -8,7 +8,7 @@ public sealed class CrtWarmupPhase : IBootPhase
     private static readonly string _suirdcLine = new string('═', 70);
     private DateTimeOffset _startTime;
     private DateTimeOffset _blinkTimer;
-    private Random _rng;
+    private readonly Random _rng;
     private bool _blinkVisible;
     private int _blinkInterval;
 
@@ -50,9 +50,9 @@ public sealed class CrtWarmupPhase : IBootPhase
         int lineX = (buffer.Width - _suirdcLine.Length) / 2;
         int centerY = buffer.Height / 2;
 
-        buffer.WriteAt(lineX, centerY - 1, _suirdcLine, ExoColors.ColorAmber);
-        buffer.WriteAt(textX, centerY, _suirdcText, ExoColors.ColorAmber);
-        buffer.WriteAt(lineX, centerY + 1, _suirdcLine, ExoColors.ColorAmber);
+        buffer.WriteAt(lineX, centerY - 1, _suirdcLine, ExoColors.ProksBorder);
+        buffer.WriteAt(textX, centerY, _suirdcText, ExoColors.ProksText);
+        buffer.WriteAt(lineX, centerY + 1, _suirdcLine, ExoColors.ProksBorder);
     }
 
     public bool IsDone { get; private set; }

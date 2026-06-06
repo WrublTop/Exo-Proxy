@@ -14,6 +14,10 @@ public sealed class BootScreen : IScreen
     public OperatorAccount? LoggedInAccount =>
         (_phases.OfType<LoginPhase>().FirstOrDefault())?.LoggedInAccount;
 
+    public bool IsBooted => _currentPhase >= _phases.Count;
+
+    public OperatorRegistry Registry => _registry;
+
     public BootScreen()
     {
         _registry = new OperatorRegistry();

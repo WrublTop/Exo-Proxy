@@ -61,12 +61,15 @@ public sealed class RenderBuffer : IRenderBuffer
     public string Flush()
     {
         _sb.Clear();
-        _sb.Append(ExoCodes.MoveTo(1, 1));
+
+        int xOff = Math.Max(0, (Console.WindowWidth  - Width)  / 2);
+        int yOff = Math.Max(0, (Console.WindowHeight - Height) / 2);
 
         string? lastColor = null;
 
         for (int y = 0; y < Height; y++)
         {
+            _sb.Append(ExoCodes.MoveTo(xOff + 1, y + yOff + 1));
             for (int x = 0; x < Width; x++)
             {
                 string? color = _colors[x, y];

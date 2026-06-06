@@ -153,7 +153,7 @@ public sealed class BiosHeaderPhase : IBootPhase
     public void Render(IRenderBuffer buffer)
     {
         for (int i = 0; i < _biosLines.Length; i++)
-            buffer.WriteAt(1, 1 + i, _biosLines[i], ExoColors.ColorAmber);
+            buffer.WriteAt(1, 1 + i, _biosLines[i], ExoColors.ProksText);
 
         // Uncomment the block below to show the SUIRDC logo in the top-right corner during BIOS header.
         /*
@@ -161,27 +161,27 @@ public sealed class BiosHeaderPhase : IBootPhase
         {
             int logoX = buffer.Width - 40;
             for (int i = 0; i < _logoLines.Length; i++)
-                buffer.WriteAt(logoX, 4 + i, _logoLines[i], ExoColors.ColorAmberDim);
+                buffer.WriteAt(logoX, 4 + i, _logoLines[i], ExoColors.ProksDark);
         }
         */
 
-        buffer.WriteAt(1, DetectStartRow - 1, _detectHeader, ExoColors.ColorAmber);
+        buffer.WriteAt(1, DetectStartRow - 1, _detectHeader, ExoColors.ProksText);
 
         for (int i = 0; i < _detectIndex && i < _detectLines.Length; i++)
             RenderDetectLine(buffer, i, DetectStartRow + i);
 
         int bottomRow = buffer.Height - 2;
-        buffer.WriteAt(1, bottomRow, "Press ", ExoColors.ColorAmberDim);
-        buffer.WriteAt(7, bottomRow, "DEL", ExoColors.ColorAmber);
-        buffer.WriteAt(10, bottomRow, " to enter SETUP", ExoColors.ColorAmberDim);
-        buffer.WriteAt(1, bottomRow + 1, "1294-12-RAD9000XD,SUIRDC-7.12.6LTS-SR74-00", ExoColors.ColorAmberDim);
+        buffer.WriteAt(1, bottomRow, "Press ", ExoColors.ProksDark);
+        buffer.WriteAt(7, bottomRow, "DEL", ExoColors.ProksPale);
+        buffer.WriteAt(10, bottomRow, " to enter SETUP", ExoColors.ProksDark);
+        buffer.WriteAt(1, bottomRow + 1, "1294-12-RAD9000XD,SUIRDC-7.12.6LTS-SR74-00", ExoColors.ProksDark);
 
         if (_detectIndex >= _detectLines.Length)
         {
             if (_blinkVisible)
             {
                 int loadRow = DetectStartRow + _detectLines.Length + 1;
-                buffer.WriteAt(1, loadRow, "Initializing Memory Diagnostic Sequence...", ExoColors.ColorAmber);
+                buffer.WriteAt(1, loadRow, "Initializing Memory Diagnostic Sequence...", ExoColors.ProksText);
             }
             return;
         }
@@ -195,28 +195,28 @@ public sealed class BiosHeaderPhase : IBootPhase
         else
         {
             string label = "   " + _detectLines[_detectIndex].Label.PadRight(DetectLabelWidth) + "... ";
-            buffer.WriteAt(1, row, label, ExoColors.ColorAmber);
+            buffer.WriteAt(1, row, label, ExoColors.ProksPale);
 
             int x = 1 + label.Length;
-            buffer.WriteAt(x, row, "[Press F4 to skip]", ExoColors.ColorAmberDim);
+            buffer.WriteAt(x, row, "[Press F4 to skip]", ExoColors.ProksDark);
 
             if (_blinkVisible)
-                buffer.WriteAt(x + "[Press F4 to skip]".Length, row, "_", ExoColors.ColorAmberDim);
+                buffer.WriteAt(x + "[Press F4 to skip]".Length, row, "_", ExoColors.ProksDark);
         }
     }
 
     private void RenderDetectLine(IRenderBuffer buffer, int i, int row)
     {
         string label = "   " + _detectLines[i].Label.PadRight(DetectLabelWidth) + "... ";
-        buffer.WriteAt(1, row, label, ExoColors.ColorAmber);
+        buffer.WriteAt(1, row, label, ExoColors.ProksPale);
         buffer.WriteAt(1 + label.Length, row, _detectLines[i].Result, ResultColor(_detectLines[i].Result));
     }
 
     private static string ResultColor(string result) => result switch
     {
-        "NO SIGNAL" => ExoColors.ColorError,
-        "NOT INSTALLED" or "NONE" => ExoColors.ColorAmberDim,
-        _ => ExoColors.ColorAmber,
+        "NO SIGNAL" => ExoColors.FaultText,
+        "NOT INSTALLED" or "NONE" => ExoColors.ProksDark,
+        _ => ExoColors.ProksText,
     };
 
     private void StartFlicker(DateTimeOffset now)

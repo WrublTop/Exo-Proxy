@@ -220,9 +220,14 @@ public sealed class QlinkHandshakePhase : IBootPhase
 
     private List<StreamEvent> BuildEvents()
     {
-        var a = ExoColors.ColorAmber;
-        var dim = ExoColors.ColorAmberDim;
-        var err = ExoColors.ColorError;
+        var proks    = ExoColors.ProksText;
+        var proksP   = ExoColors.ProksPale;
+        var proksBdr = ExoColors.ProksBorder;
+        var proksDrk = ExoColors.ProksDark;
+        var phos     = ExoColors.PhosphorText;
+        var sig      = ExoColors.SignalText;
+        var sigDm    = ExoColors.SignalDim;
+        var fault    = ExoColors.FaultText;
 
         string rawOp = _loginPhase.LoggedInAccount?.Login ?? "UNKNOWN";
         string op = rawOp.Length > 12 ? rawOp[..12] : rawOp;
@@ -237,154 +242,154 @@ public sealed class QlinkHandshakePhase : IBootPhase
 
         return
         [
-            new(0,    "QLINK PROTOCOL v2.1 — UPLINK INITIALIZATION",                                    a),
-            new(100,  new string('═', 62),                                                               dim),
-            new(600,  "",                                                                                 dim),
+            new(0,    "QLINK PROTOCOL v2.1 — UPLINK INITIALIZATION",                                    proks),
+            new(100,  new string('═', 62),                                                               proksBdr),
+            new(600,  "",                                                                                 proksBdr),
 
             // ── Frequency scanner ──────────────────────────────────────────
-            new(200,  "SCANNING FREQUENCY BAND...",                                                      dim),
-            new(500,  EqMarker,                                                                          dim),
-            new(0,    EqAxisMarker,                                                                      dim),
-            new(5000, "CARRIER DETECTED  148.842 MHz",                                                   a),
-            new(500,  "",                                                                                 dim),
+            new(200,  "SCANNING FREQUENCY BAND...",                                                      proksP),
+            new(500,  EqMarker,                                                                          sigDm),
+            new(0,    EqAxisMarker,                                                                      proksDrk),
+            new(5000, "CARRIER DETECTED  148.842 MHz",                                                   sig),
+            new(500,  "",                                                                                 proksBdr),
 
             // ── SNR acquisition ────────────────────────────────────────────
-            new(200,  "SIGNAL ACQUISITION",                                                              a),
-            new(400,  "SNR  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0 dB",                                  dim),
-            new(500,  "SNR  [▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░░░░░░░░]   8 dB",                                  dim, UpdateLast: true),
-            new(500,  "SNR  [▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░]  16 dB",                                  dim, UpdateLast: true),
-            new(500,  "SNR  [▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░]  24 dB",                                  dim, UpdateLast: true),
-            new(500,  "SNR  [▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░]  31 dB",                                  a,   UpdateLast: true),
-            new(400,  "CARRIER LOCK ......................................... OK",                         a),
-            new(500,  "",                                                                                 dim),
+            new(200,  "SIGNAL ACQUISITION",                                                              proks),
+            new(400,  "SNR  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0 dB",                                  sigDm),
+            new(500,  "SNR  [▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░░░░░░░░]   8 dB",                                  sigDm, UpdateLast: true),
+            new(500,  "SNR  [▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░]  16 dB",                                  sigDm, UpdateLast: true),
+            new(500,  "SNR  [▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░]  24 dB",                                  sigDm, UpdateLast: true),
+            new(500,  "SNR  [▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░]  31 dB",                                  sig,   UpdateLast: true),
+            new(400,  "CARRIER LOCK ......................................... OK",                         phos),
+            new(500,  "",                                                                                 proksBdr),
 
             // ── Doppler correction ─────────────────────────────────────────
-            new(200,  "DOPPLER CORRECTION",                                                              a),
-            new(400,  "DRIFT  +3.41 kHz  CORRECTING...",                                                 dim),
-            new(600,  "DRIFT  +1.24 kHz  CORRECTING...",                                                 dim, UpdateLast: true),
-            new(600,  "DRIFT  +0.41 kHz  CORRECTING...",                                                 dim, UpdateLast: true),
-            new(600,  "DRIFT  +0.02 kHz  STABLE ............................ OK",                         a,   UpdateLast: true),
-            new(500,  "",                                                                                 dim),
+            new(200,  "DOPPLER CORRECTION",                                                              proks),
+            new(400,  "DRIFT  +3.41 kHz  CORRECTING...",                                                 proksP),
+            new(600,  "DRIFT  +1.24 kHz  CORRECTING...",                                                 proksP, UpdateLast: true),
+            new(600,  "DRIFT  +0.41 kHz  CORRECTING...",                                                 proksP, UpdateLast: true),
+            new(600,  "DRIFT  +0.02 kHz  STABLE ............................ OK",                         phos,   UpdateLast: true),
+            new(500,  "",                                                                                 proksBdr),
 
             // ── Channel diagnostics ────────────────────────────────────────
-            new(200,  "CHANNEL DIAGNOSTICS",                                                             a),
-            new(250,  "  UPLINK RATE ................................... 847 QBps",                        dim),
-            new(200,  "  DOWNLINK RATE ................................. 631 QBps",                        dim),
-            new(200,  "  PACKET LOSS ..................................... 0.2%",                          dim),
-            new(200,  "  LATENCY ........................................ 2.3s",                           dim),
-            new(200,  "  QEC LAYER ...................................... ACTIVE",                          a),
-            new(500,  "",                                                                                 dim),
+            new(200,  "CHANNEL DIAGNOSTICS",                                                             proks),
+            new(250,  "  UPLINK RATE ................................... 847 QBps",                        proksP),
+            new(200,  "  DOWNLINK RATE ................................. 631 QBps",                        proksP),
+            new(200,  "  PACKET LOSS ..................................... 0.2%",                          proksP),
+            new(200,  "  LATENCY ........................................ 2.3s",                           proksP),
+            new(200,  "  QEC LAYER ...................................... ACTIVE",                          proks),
+            new(500,  "",                                                                                 proksBdr),
 
-            new(400,  "RELAY NODE  ARX-7 [ORBITAL]  SIGNAL INTEGRITY: 94% .... OK",                     a),
-            new(600,  "",                                                                                 dim),
-            new(0,    new string('─', 62),                                                               dim),
-            new(300,  "",                                                                                 dim),
+            new(400,  "RELAY NODE  ARX-7 [ORBITAL]  SIGNAL INTEGRITY: 94% .... OK",                     phos),
+            new(600,  "",                                                                                 proksBdr),
+            new(0,    new string('─', 62),                                                               proksBdr),
+            new(300,  "",                                                                                 proksBdr),
 
             // ── Packet 1: QLINK version ────────────────────────────────────
-            new(300,  TxArrow(p1, 0,  "T+0.0s"),                                                        dim),
-            new(150,  TxArrow(p1, 5,  "T+0.0s"),                                                        dim, UpdateLast: true),
-            new(150,  TxArrow(p1, 10, "T+0.0s"),                                                        dim, UpdateLast: true),
-            new(2300, RxArrow(0,  "T+2.6s"),                                                             dim),
-            new(150,  RxArrow(5,  "T+2.6s"),                                                             dim, UpdateLast: true),
-            new(150,  RxArrow(10, "T+2.6s"),                                                             dim, UpdateLast: true),
-            new(200,  "                                          [QLINK v2.1] COMPATIBLE",               a),
-            new(700,  "",                                                                                 dim),
+            new(300,  TxArrow(p1, 0,  "T+0.0s"),                                                        proksP),
+            new(150,  TxArrow(p1, 5,  "T+0.0s"),                                                        proksP, UpdateLast: true),
+            new(150,  TxArrow(p1, 10, "T+0.0s"),                                                        proksP, UpdateLast: true),
+            new(2300, RxArrow(0,  "T+2.6s"),                                                             sigDm),
+            new(150,  RxArrow(5,  "T+2.6s"),                                                             sigDm, UpdateLast: true),
+            new(150,  RxArrow(10, "T+2.6s"),                                                             sigDm, UpdateLast: true),
+            new(200,  "                                          [QLINK v2.1] COMPATIBLE",               proks),
+            new(700,  "",                                                                                 proksBdr),
 
             // ── Packet 2: AUTH — TIMEOUT blinks twice, then retry ──────────
-            new(300,  TxArrow(p2, 0,  "T+0.0s"),                                                        dim),
-            new(150,  TxArrow(p2, 5,  "T+0.0s"),                                                        dim, UpdateLast: true),
-            new(150,  TxArrow(p2, 10, "T+0.0s"),                                                        dim, UpdateLast: true),
-            new(3500, timeout,                                                                            err),
-            new(220,  "",                                                                                 err, UpdateLast: true),
-            new(220,  timeout,                                                                            err, UpdateLast: true),
-            new(220,  "",                                                                                 err, UpdateLast: true),
-            new(220,  timeout,                                                                            err, UpdateLast: true),
-            new(1000, TxArrow(p2, 0,  "RETRY 1/3"),                                                     dim),
-            new(150,  TxArrow(p2, 5,  "RETRY 1/3"),                                                     dim, UpdateLast: true),
-            new(150,  TxArrow(p2, 10, "RETRY 1/3"),                                                     dim, UpdateLast: true),
-            new(2400, RxArrow(0,  "T+2.7s"),                                                             dim),
-            new(150,  RxArrow(5,  "T+2.7s"),                                                             dim, UpdateLast: true),
-            new(150,  RxArrow(10, "T+2.7s"),                                                             dim, UpdateLast: true),
-            new(200,  "                                          [AUTH GRANTED]",                         a),
-            new(700,  "",                                                                                 dim),
+            new(300,  TxArrow(p2, 0,  "T+0.0s"),                                                        proksP),
+            new(150,  TxArrow(p2, 5,  "T+0.0s"),                                                        proksP, UpdateLast: true),
+            new(150,  TxArrow(p2, 10, "T+0.0s"),                                                        proksP, UpdateLast: true),
+            new(3500, timeout,                                                                            fault),
+            new(220,  "",                                                                                 fault, UpdateLast: true),
+            new(220,  timeout,                                                                            fault, UpdateLast: true),
+            new(220,  "",                                                                                 fault, UpdateLast: true),
+            new(220,  timeout,                                                                            fault, UpdateLast: true),
+            new(1000, TxArrow(p2, 0,  "RETRY 1/3"),                                                     proksP),
+            new(150,  TxArrow(p2, 5,  "RETRY 1/3"),                                                     proksP, UpdateLast: true),
+            new(150,  TxArrow(p2, 10, "RETRY 1/3"),                                                     proksP, UpdateLast: true),
+            new(2400, RxArrow(0,  "T+2.7s"),                                                             sigDm),
+            new(150,  RxArrow(5,  "T+2.7s"),                                                             sigDm, UpdateLast: true),
+            new(150,  RxArrow(10, "T+2.7s"),                                                             sigDm, UpdateLast: true),
+            new(200,  "                                          [AUTH GRANTED]",                         phos),
+            new(700,  "",                                                                                 proksBdr),
 
             // ── Packet 3: KEY EXCHANGE — relay cache ───────────────────────
-            new(300,  TxArrow(p3, 0,  "T+0.0s"),                                                        dim),
-            new(150,  TxArrow(p3, 5,  "T+0.0s"),                                                        dim, UpdateLast: true),
-            new(150,  TxArrow(p3, 10, "T+0.0s"),                                                        dim, UpdateLast: true),
-            new(1500, RxArrow(0,  "T+0.9s"),                                                             dim),
-            new(150,  RxArrow(5,  "T+0.9s"),                                                             dim, UpdateLast: true),
-            new(150,  RxArrow(10, "T+0.9s"),                                                             dim, UpdateLast: true),
-            new(200,  "                                          [KEY CONFIRMED]",                        a),
-            new(200,  "SESSION KEY  [A3F2...8C1D] .......................... OK",                         a),
-            new(700,  "",                                                                                 dim),
+            new(300,  TxArrow(p3, 0,  "T+0.0s"),                                                        proksP),
+            new(150,  TxArrow(p3, 5,  "T+0.0s"),                                                        proksP, UpdateLast: true),
+            new(150,  TxArrow(p3, 10, "T+0.0s"),                                                        proksP, UpdateLast: true),
+            new(1500, RxArrow(0,  "T+0.9s"),                                                             sigDm),
+            new(150,  RxArrow(5,  "T+0.9s"),                                                             sigDm, UpdateLast: true),
+            new(150,  RxArrow(10, "T+0.9s"),                                                             sigDm, UpdateLast: true),
+            new(200,  "                                          [KEY CONFIRMED]",                        phos),
+            new(200,  "SESSION KEY  [A3F2...8C1D] .......................... OK",                         phos),
+            new(700,  "",                                                                                 proksBdr),
 
             // ── Packet 4: TELEMETRY — wolny, prawie timeout ────────────────
-            new(300,  TxArrow(p4, 0,  "T+0.0s"),                                                        dim),
-            new(150,  TxArrow(p4, 5,  "T+0.0s"),                                                        dim, UpdateLast: true),
-            new(150,  TxArrow(p4, 10, "T+0.0s"),                                                        dim, UpdateLast: true),
-            new(3100, RxArrow(0,  "T+3.5s"),                                                             dim),
-            new(150,  RxArrow(5,  "T+3.5s"),                                                             dim, UpdateLast: true),
-            new(150,  RxArrow(10, "T+3.5s"),                                                             dim, UpdateLast: true),
-            new(500,  "",                                                                                 dim),
+            new(300,  TxArrow(p4, 0,  "T+0.0s"),                                                        proksP),
+            new(150,  TxArrow(p4, 5,  "T+0.0s"),                                                        proksP, UpdateLast: true),
+            new(150,  TxArrow(p4, 10, "T+0.0s"),                                                        proksP, UpdateLast: true),
+            new(3100, RxArrow(0,  "T+3.5s"),                                                             sigDm),
+            new(150,  RxArrow(5,  "T+3.5s"),                                                             sigDm, UpdateLast: true),
+            new(150,  RxArrow(10, "T+3.5s"),                                                             sigDm, UpdateLast: true),
+            new(500,  "",                                                                                 proksBdr),
 
             // ── Telemetry ──────────────────────────────────────────────────
-            new(300,  "RX  4E 52 3A 38 31 20 48 55 4C 3A 39 36 20 50 4F 53...",                         dim),
-            new(2000, "PARSING TELEMETRY.",                                                              a),
-            new(300,  "PARSING TELEMETRY..",                                                             a,   UpdateLast: true),
-            new(300,  "PARSING TELEMETRY...",                                                            a,   UpdateLast: true),
-            new(600,  "",                                                                                 dim),
-            new(300,  "  UNIT DESIGNATION .................................... SR-74",                     dim),
-            new(300,  "  POWER SYSTEMS ........................................ 81%",                      dim),
-            new(300,  "  HULL INTEGRITY ....................................... 96%",                      dim),
-            new(300,  "  POSITION .................. 34.2°N  117.8°E  ALT +1,247 m",                     dim),
-            new(500,  "",                                                                                 dim),
+            new(300,  "RX  4E 52 3A 38 31 20 48 55 4C 3A 39 36 20 50 4F 53...",                         sigDm),
+            new(2000, "PARSING TELEMETRY.",                                                              proks),
+            new(300,  "PARSING TELEMETRY..",                                                             proks, UpdateLast: true),
+            new(300,  "PARSING TELEMETRY...",                                                            proks, UpdateLast: true),
+            new(600,  "",                                                                                 proksBdr),
+            new(300,  "  UNIT DESIGNATION .................................... SR-74",                     sig),
+            new(300,  "  POWER SYSTEMS ........................................ 81%",                      sig),
+            new(300,  "  HULL INTEGRITY ....................................... 96%",                      sig),
+            new(300,  "  POSITION .................. 34.2°N  117.8°E  ALT +1,247 m",                     sig),
+            new(500,  "",                                                                                 sigDm),
 
             // ── Environment ────────────────────────────────────────────────
-            new(300,  "ENVIRONMENT SNAPSHOT",                                                            a),
-            new(300,  "  SURFACE TEMP ..................................... 187 K",                        dim),
-            new(300,  "  RADIATION INDEX ................................ 2.4 mSv",                       dim),
-            new(300,  "  ATMOSPHERIC PRESSURE ......................... 0.03 kPa",                        dim),
-            new(500,  "",                                                                                 dim),
+            new(300,  "ENVIRONMENT SNAPSHOT",                                                            sig),
+            new(300,  "  SURFACE TEMP ..................................... 187 K",                        sig),
+            new(300,  "  RADIATION INDEX ................................ 2.4 mSv",                       sig),
+            new(300,  "  ATMOSPHERIC PRESSURE ......................... 0.03 kPa",                        sig),
+            new(500,  "",                                                                                 sigDm),
 
             // ── Module diagnostics ─────────────────────────────────────────
-            new(0,    new string('─', 62),                                                               dim),
-            new(300,  "RUNNING MODULE DIAGNOSTICS...",                                                   a),
-            new(300,  "  DRIVE SYSTEM ...................................... TESTING",                     dim),
-            new(2000, "  DRIVE SYSTEM ....................................... OK",                         a,   UpdateLast: true),
-            new(200,  "  POWER MANAGEMENT .................................. TESTING",                     dim),
-            new(1500, "  POWER MANAGEMENT ................................... OK",                         a,   UpdateLast: true),
-            new(200,  "  SENSOR ARRAY ...................................... TESTING",                     dim),
-            new(2200, "  SENSOR ARRAY ....................................... OK",                         a,   UpdateLast: true),
-            new(200,  "  SAMPLE COLLECTOR .................................. TESTING",                     dim),
-            new(1500, "  SAMPLE COLLECTOR ................................... OK",                         a,   UpdateLast: true),
-            new(200,  "  COMMS RELAY ....................................... TESTING",                     dim),
-            new(1800, "  COMMS RELAY ........................................ OK",                         a,   UpdateLast: true),
-            new(500,  "",                                                                                 dim),
+            new(0,    new string('─', 62),                                                               proksBdr),
+            new(300,  "RUNNING MODULE DIAGNOSTICS...",                                                   proks),
+            new(300,  "  DRIVE SYSTEM ...................................... TESTING",                     proksP),
+            new(2000, "  DRIVE SYSTEM ....................................... OK",                         phos,  UpdateLast: true),
+            new(200,  "  POWER MANAGEMENT .................................. TESTING",                     proksP),
+            new(1500, "  POWER MANAGEMENT ................................... OK",                         phos,  UpdateLast: true),
+            new(200,  "  SENSOR ARRAY ...................................... TESTING",                     proksP),
+            new(2200, "  SENSOR ARRAY ....................................... OK",                         phos,  UpdateLast: true),
+            new(200,  "  SAMPLE COLLECTOR .................................. TESTING",                     proksP),
+            new(1500, "  SAMPLE COLLECTOR ................................... OK",                         phos,  UpdateLast: true),
+            new(200,  "  COMMS RELAY ....................................... TESTING",                     proksP),
+            new(1800, "  COMMS RELAY ........................................ OK",                         phos,  UpdateLast: true),
+            new(500,  "",                                                                                 proksBdr),
 
             // ── Clock sync ─────────────────────────────────────────────────
-            new(300,  "MISSION CLOCK SYNC",                                                              a),
-            new(400,  "  STATION  SOL 001  08:14:33",                                                    dim),
-            new(2500, "  SR-74    SOL 001  08:14:35  DELTA +2s  CORRECTING...  OK",                     a),
-            new(500,  "",                                                                                 dim),
+            new(300,  "MISSION CLOCK SYNC",                                                              proks),
+            new(400,  "  STATION  SOL 001  08:14:33",                                                    proksP),
+            new(2500, "  SR-74    SOL 001  08:14:35  DELTA +2s  CORRECTING...  OK",                     sig),
+            new(500,  "",                                                                                 proksBdr),
 
             // ── Operator session ───────────────────────────────────────────
-            new(0,    new string('─', 62),                                                               dim),
-            new(300,  "REGISTERING OPERATOR SESSION",                                                    a),
-            new(300,  $"  OPERATOR ..................................... {op}",                            dim),
-            new(200,  "  ACCESS TIER ................................... DELTA-2",                          dim),
-            new(200,  $"  SESSION ID ........................................ {sessionId}",                dim),
-            new(500,  "",                                                                                 dim),
+            new(0,    new string('─', 62),                                                               proksBdr),
+            new(300,  "REGISTERING OPERATOR SESSION",                                                    proks),
+            new(300,  $"  OPERATOR ..................................... {op}",                            proksP),
+            new(200,  "  ACCESS TIER ................................... DELTA-2",                          proksP),
+            new(200,  $"  SESSION ID ........................................ {sessionId}",                proksP),
+            new(500,  "",                                                                                 proksBdr),
 
-            new(600,  "DOWNLINK QUEUE  0 PACKETS — FIRST SESSION",                                      dim),
-            new(600,  "",                                                                                 dim),
-            new(300,  new string('═', 62),                                                               dim),
+            new(600,  "DOWNLINK QUEUE  0 PACKETS — FIRST SESSION",                                      proksP),
+            new(600,  "",                                                                                 proksBdr),
+            new(300,  new string('═', 62),                                                               proksBdr),
 
             // ── Final line: flash-in for emphasis ─────────────────────────
-            new(500,  "",                                                                                 a),
-            new(200,  "QLINK SESSION OPEN — SR-74 UPLINK READY",                                        a,   UpdateLast: true),
-            new(250,  "",                                                                                 a,   UpdateLast: true),
-            new(300,  "QLINK SESSION OPEN — SR-74 UPLINK READY",                                        a,   UpdateLast: true),
+            new(500,  "",                                                                                 phos),
+            new(200,  "QLINK SESSION OPEN — SR-74 UPLINK READY",                                        phos,  UpdateLast: true),
+            new(250,  "",                                                                                 phos,  UpdateLast: true),
+            new(300,  "QLINK SESSION OPEN — SR-74 UPLINK READY",                                        phos,  UpdateLast: true),
         ];
     }
 
@@ -486,11 +491,11 @@ public sealed class QlinkHandshakePhase : IBootPhase
 
                     string barColor;
                     if (_eqPhase < 3)
-                        barColor = flashFull ? ExoColors.ColorAmber : ExoColors.ColorAmberDim;
+                        barColor = flashFull ? ExoColors.SignalText : ExoColors.SignalDim;
                     else
                     {
                         int dist = Math.Abs(col - EqCarrier);
-                        barColor = dist <= 3 ? ExoColors.ColorAmber : ExoColors.ColorAmberDim;
+                        barColor = dist <= 3 ? ExoColors.SignalText : ExoColors.SignalDim;
                     }
 
                     buffer.WriteAt(startX + col * 2, marginTop + i, bars[h - 1].ToString(), barColor);
@@ -498,9 +503,9 @@ public sealed class QlinkHandshakePhase : IBootPhase
             }
             else if (_eqAxisIndex >= 0 && lineIdx == _eqAxisIndex)
             {
-                buffer.WriteAt(startX, marginTop + i, _eqAxisString, ExoColors.ColorAmberDim);
+                buffer.WriteAt(startX, marginTop + i, _eqAxisString, ExoColors.ProksDark);
                 int markerCol = Math.Clamp((int)Math.Round(_eqMarkerPos), 0, EqCols - 1);
-                buffer.WriteAt(startX + markerCol * 2, marginTop + i, "▲", ExoColors.ColorAmber);
+                buffer.WriteAt(startX + markerCol * 2, marginTop + i, "▲", ExoColors.SignalText);
             }
             else
             {
@@ -521,9 +526,9 @@ public sealed class QlinkHandshakePhase : IBootPhase
                 var (lt, lc) = _lines[i];
                 if (string.IsNullOrEmpty(lt)) continue;
                 if (lt == EqMarker || lt == EqAxisMarker) continue;
-                if (lc == ExoColors.ColorError) break;
+                if (lc == ExoColors.FaultText) break;
                 int row = marginTop + (i - startLine);
-                buffer.WriteAt(startX + lt.Length + 2, row, sp[frame].ToString(), ExoColors.ColorAmberDim);
+                buffer.WriteAt(startX + lt.Length + 2, row, sp[frame].ToString(), ExoColors.ProksPale);
                 break;
             }
         }
@@ -534,11 +539,11 @@ public sealed class QlinkHandshakePhase : IBootPhase
         int remSec = (int)(remaining / 1000.0);
         string etaText = $"ETA  {remSec / 60:D2}:{remSec % 60:D2}";
 
-        buffer.WriteAt(startX, buffer.Height - 3, "◈", _blinkVisible ? ExoColors.ColorAmber : ExoColors.ColorAmberDim);
-        buffer.WriteAt(startX + 2, buffer.Height - 3, "UPLINK ACTIVE", ExoColors.ColorAmberDim);
-        buffer.WriteAt(startX + 62 - etaText.Length, buffer.Height - 3, etaText, ExoColors.ColorAmberDim);
+        buffer.WriteAt(startX, buffer.Height - 3, "◈", _blinkVisible ? ExoColors.ProksText : ExoColors.ProksDark);
+        buffer.WriteAt(startX + 2, buffer.Height - 3, "UPLINK ACTIVE", ExoColors.ProksPale);
+        buffer.WriteAt(startX + 62 - etaText.Length, buffer.Height - 3, etaText, ExoColors.ProksPale);
 
         if ((_lastNow - _phaseStartTime).TotalMilliseconds > 2000)
-            buffer.WriteAt((buffer.Width - 23) / 2, buffer.Height - 2, "F4 Skip QLINK handshake", ExoColors.ColorAmberDim);
+            buffer.WriteAt((buffer.Width - 23) / 2, buffer.Height - 2, "F4 Skip QLINK handshake", ExoColors.ProksDark);
     }
 }

@@ -1,0 +1,150 @@
+- id: suirdc_bulletin_047
+  sender: suirdc
+  sender_display: SUIRDC MODULAR SYSTEMS
+  subject: "Bulletin #47 — Quarterly Output"
+  sol: SOL 001
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator,
+
+    Below are the quarterly results for the Cyra-6
+    extraction sector. Operational efficiency increased
+    by 4% compared to the previous reporting period.
+
+    Sector A: NOMINAL
+    Sector B: NOMINAL
+    Sector C: NOMINAL
+    Sector D: DATA UNAVAILABLE
+
+    Thank you for your continued contribution to the
+    SUIRDC mission.
+
+    — Corporate Communications Division, SUIRDC
+
+- id: suirdc_article_001
+  sender: suirdc
+  sender_display: SUIRDC MODULAR SYSTEMS
+  subject: "Article: Proks and Cyra-6 Gravity"
+  sol: SOL 001
+  can_reply: false
+  locked: false
+  body: |
+    SUIRDC SCIENTIFIC REVIEW — Issue 214
+
+    INFLUENCE OF CYRA-6 GRAVITATIONAL CONDITIONS ON
+    PROKS STRUCTURAL STABILITY IN BARREN PHASE
+
+    Authors: Dr. A. Vrenn, Dr. T. Kalisch
+    SUIRDC Institute for Resource Research
+
+    Research conducted between 1291-1296 AJD indicates
+    that barren-phase proks exhibits increased structural
+    brittleness under Cyra-6 gravitational conditions
+    (0.87g) compared to standard Earth conditions.
+
+    Implications for the extraction process are minimal,
+    provided pressure protocols outlined in the Operator
+    Handbook (ch. 7) are observed.
+
+    Full publication available upon request.
+
+- id: aleksy_001
+  sender: aleksy_k
+  sender_display: Aleksy K.
+  subject: Sector D last night
+  sol: SOL 001
+  can_reply: true
+  locked: false
+  body: |
+    Hey,
+
+    Did you hear what happened in sector D last night?
+    Something bad is going on. Let me know if you hear
+    anything, seriously.
+  reply_options:
+    - id: r1
+      text: "No, what happened?"
+      unlocks: aleksy_002_a
+    - id: r2
+      text: "Yeah, heard about it. Not good."
+      unlocks: aleksy_002_b
+    - id: r3
+      text: "Not my problem."
+      unlocks: aleksy_002_c
+
+- id: aleksy_002_a
+  sender: aleksy_k
+  sender_display: Aleksy K.
+  subject: "Re: Sector D last night"
+  sol: SOL 001
+  can_reply: true
+  locked: true
+  body: |
+    Lucky you.
+
+    I saw something near the western wall. Hands.
+    A lot of hands. Sticking out of the ground maybe
+    10, 15 centimeters. They weren't there a week ago.
+
+    I reported it to my supervisor. They told me not
+    to worry about it and get back to work.
+  reply_options:
+    - id: r1
+      text: "How many were there?"
+      unlocks: aleksy_003_a1
+    - id: r2
+      text: "And you just went back to work?"
+      unlocks: aleksy_003_a2
+
+- id: aleksy_002_b
+  sender: aleksy_k
+  sender_display: Aleksy K.
+  subject: "Re: Sector D last night"
+  sol: SOL 001
+  can_reply: false
+  locked: true
+  body: |
+    Right. Stay away from there.
+
+    And don't tell anyone I told you.
+
+- id: aleksy_002_c
+  sender: aleksy_k
+  sender_display: Aleksy K.
+  subject: "Re: Sector D last night"
+  sol: SOL 001
+  can_reply: false
+  locked: true
+  body: |
+    ...
+
+    Okay.
+
+- id: aleksy_003_a1
+  sender: aleksy_k
+  sender_display: Aleksy K.
+  subject: "Re: Sector D last night"
+  sol: SOL 001
+  can_reply: false
+  locked: true
+  body: |
+    I didn't count. A lot. Row after row, all spaced
+    evenly. Like they were growing on the same rhythm.
+    All identical — fingers pointing upward, like
+    they were waiting for something.
+
+    I don't know what it is. Nobody does. Or they do
+    and they're not telling us.
+
+- id: aleksy_003_a2
+  sender: aleksy_k
+  sender_display: Aleksy K.
+  subject: "Re: Sector D last night"
+  sol: SOL 001
+  can_reply: false
+  locked: true
+  body: |
+    Went back to work. What else was I going to do.
+
+    Haven't slept well since.

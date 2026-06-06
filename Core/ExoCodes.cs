@@ -2,8 +2,6 @@
 
 public static class ExoCodes
 {
-    private const string Esc = "\e[";
-
     public static string Reset => "\e[0m";
     public static string ClearScreen => "\e[2J";
     public static string HideCursor => "\e[?25l";

@@ -30,8 +30,6 @@ public sealed class LoginPhase : IBootPhase
     {
         _registry   = registry;
         _blinkTimer = DateTimeOffset.UtcNow;
-
-        // no pre-selection — player starts fresh
     }
 
     public void Update(DateTimeOffset now, InputEvent? input)
@@ -306,24 +304,24 @@ public sealed class LoginPhase : IBootPhase
         int boxY = (buffer.Height - (MaxSlots + 7)) / 2;
 
         string title = "REMOTE ACQUISITION DIVISION — Operator Registry";
-        buffer.WriteAt((buffer.Width - title.Length) / 2, boxY - 2, title, ExoColors.ColorAmber);
-        buffer.WriteAt(boxX, boxY - 1, new string('─', BoxWidth), ExoColors.ColorAmber);
+        buffer.WriteAt((buffer.Width - title.Length) / 2, boxY - 2, title, ExoColors.ProksText);
+        buffer.WriteAt(boxX, boxY - 1, new string('─', BoxWidth), ExoColors.ProksBorder);
 
-        buffer.WriteAt(boxX, boxY, "┌" + new string('─', BoxWidth - 2) + "┐", ExoColors.ColorAmber);
+        buffer.WriteAt(boxX, boxY, "┌" + new string('─', BoxWidth - 2) + "┐", ExoColors.ProksBorder);
 
         var visualSlots = GetVisualSlots();
         for (int i = 0; i < MaxSlots; i++)
         {
             int row = boxY + 1 + i;
 
-            buffer.WriteAt(boxX, row, "│", ExoColors.ColorAmber);
-            buffer.WriteAt(boxX + BoxWidth - 1, row, "│", ExoColors.ColorAmber);
+            buffer.WriteAt(boxX, row, "│", ExoColors.ProksBorder);
+            buffer.WriteAt(boxX + BoxWidth - 1, row, "│", ExoColors.ProksBorder);
 
             var acc = visualSlots[i];
             if (acc is not null)
             {
                 bool selected = _mode == InputMode.Login && i == _selectedIndex;
-                string color = selected ? ExoColors.ColorAmber : ExoColors.ColorAmberDim;
+                string color = selected ? ExoColors.PhosphorText : ExoColors.ProksPale;
 
                 bool redacted = acc.Status == OperatorStatus.Redacted;
                 string selector = selected ? "►" : " ";
@@ -332,19 +330,19 @@ public sealed class LoginPhase : IBootPhase
                 buffer.WriteAt(boxX + 2, row, content, color);
 
                 string statusText = redacted ? "[REDACTED]" : acc.Status == OperatorStatus.Terminated ? "TERMINATED" : "ACTIVE";
-                string statusColor = redacted ? ExoColors.ColorAmberDim : acc.Status == OperatorStatus.Terminated ? ExoColors.ColorError : ExoColors.ColorAmber;
+                string statusColor = redacted ? ExoColors.ProksDark : acc.Status == OperatorStatus.Terminated ? ExoColors.FaultText : ExoColors.ProksText;
                 buffer.WriteAt(boxX + 2 + content.Length, row, statusText, statusColor);
             }
             else
             {
                 bool selected = _mode == InputMode.Login && i == _selectedIndex;
                 string selector = selected ? "►" : " ";
-                string color = selected ? ExoColors.ColorAmber : ExoColors.ColorAmberDim;
+                string color = selected ? ExoColors.PhosphorText : ExoColors.ProksDark;
                 buffer.WriteAt(boxX + 2, row, $"{selector} [{i + 1}] —", color);
             }
         }
 
-        buffer.WriteAt(boxX, boxY + 1 + MaxSlots, "└" + new string('─', BoxWidth - 2) + "┘", ExoColors.ColorAmber);
+        buffer.WriteAt(boxX, boxY + 1 + MaxSlots, "└" + new string('─', BoxWidth - 2) + "┘", ExoColors.ProksBorder);
 
         int promptY = boxY + MaxSlots + 3;
 
@@ -357,7 +355,7 @@ public sealed class LoginPhase : IBootPhase
         if (!string.IsNullOrEmpty(lineAbove))
         {
             int msgX = (buffer.Width - lineAbove.Length) / 2;
-            buffer.WriteAt(msgX, promptY - 1, lineAbove, lineAboveIsError ? ExoColors.ColorError : ExoColors.ColorAmberDim);
+            buffer.WriteAt(msgX, promptY - 1, lineAbove, lineAboveIsError ? ExoColors.FaultText : ExoColors.ProksPale);
         }
 
         string prompt = _mode switch
@@ -374,15 +372,15 @@ public sealed class LoginPhase : IBootPhase
         string displayed = maskInput ? new string('*', _input.Length) : _input;
         int promptX = (buffer.Width - prompt.Length - displayed.Length) / 2;
 
-        buffer.WriteAt(promptX, promptY, prompt, ExoColors.ColorAmber);
-        buffer.WriteAt(promptX + prompt.Length, promptY, displayed, ExoColors.ColorAmber);
+        buffer.WriteAt(promptX, promptY, prompt, ExoColors.ProksPale);
+        buffer.WriteAt(promptX + prompt.Length, promptY, displayed, ExoColors.PhosphorText);
 
         if (_blinkVisible)
-            buffer.WriteAt(promptX + prompt.Length + displayed.Length, promptY, "_", ExoColors.ColorAmberDim);
+            buffer.WriteAt(promptX + prompt.Length + displayed.Length, promptY, "_", ExoColors.PhosphorDim);
 
         string helpBar = _mode == InputMode.Login
             ? "↑↓ Navigate   ENTER Select   DEL Redact   ESC Reset"
             : "ENTER Confirm   ESC Back";
-        buffer.WriteAt((buffer.Width - helpBar.Length) / 2, promptY + 2, helpBar, ExoColors.ColorAmberDim);
+        buffer.WriteAt((buffer.Width - helpBar.Length) / 2, promptY + 2, helpBar, ExoColors.ProksDark);
     }
 }
