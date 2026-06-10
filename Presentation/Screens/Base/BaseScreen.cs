@@ -15,15 +15,20 @@ public sealed class BaseScreen : IScreen
         var commsRepo = new CommsRepository();
         commsRepo.Load(account.Login);
 
-        var hub      = new Sections.HubSection(account, settings);
+        var memRepo = new MemoryRepository();
+        memRepo.Load(account.Login);
+
+        var hub       = new Sections.HubSection(account, settings);
         var settings_ = new Sections.SettingsSection(settings, account, registry);
-        var comms    = new Sections.CommsSection(account, commsRepo, settings);
+        var comms     = new Sections.CommsSection(account, commsRepo, settings);
+        var memory    = new Sections.MemorySection(account, memRepo, settings);
 
         _sections = new Dictionary<string, IBaseSection>
         {
             [hub.SectionId]       = hub,
             [settings_.SectionId] = settings_,
             [comms.SectionId]     = comms,
+            [memory.SectionId]    = memory,
         };
 
         _activeSection = hub;
