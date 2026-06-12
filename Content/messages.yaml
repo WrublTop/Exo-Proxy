@@ -1,0 +1,693 @@
+﻿# ========================================================================
+# SUIRDC S-LINK SYSTEM V.8.4 // INBOUND MAIL PROTOCOL // CONTENT FILE
+# ========================================================================
+
+- id: vance_welcome
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Welcome to Sektor C"
+  sol: SOL 001
+  can_reply: false
+  locked: false
+  body: |
+    Operator 0-45,
+
+    Your drop-pod has landed safely. Welcome to your Cage. For the next 365 days, you are the only human worker in this sector.
+
+    Your terminal is set to read-only. You cannot send replies. We track your health and your work through your rover's computer. That is all the communication we need.
+
+    Look at your main screen. Your rover video feed must always look blocky and boring. This is the SRC safety filter. If you see bright blue or gold colors on your screen, close your eyes. It means the filter is broken. You must never look at this planet without the filter.
+
+    Your first shift starts now. Go to work.
+
+- id: suirdc_wellness_welcome
+  sender: suirdc
+  sender_display: "Your S.U.I.R.D.C. Wellness Team"
+  subject: "Your New Home: A Warm Welcome!"
+  sol: SOL 001
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator 0-45,
+
+    Congratulations on your safe arrival! We are so proud to have you in the S.U.I.R.D.C. family. For the next 365 days, you are the exclusive guardian of Sector C.
+
+    Our automated systems will care for you by monitoring your vitals and your rover's data.
+
+    Please ensure your main monitor is active. The screen should display simple, calm shapes. This is our patented SRC Comfort Filter, designed to protect your eyes from natural visual fatigue. If you see unfiltered blue or gold lights, please close your eyes immediately for your own safety and report a temporary hardware glitch.
+
+    We wish you a peaceful, highly productive shift!
+
+- id: suirdc_secure_care
+  sender: suirdc
+  sender_display: "SECURE_CARE_BOT"
+  subject: "Protecting Your Family's Future"
+  sol: SOL 001
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator 0-45,
+
+    Because we care about your loved ones, S.U.I.R.D.C. has already secured your 500,000 Credit reward in our protected Earth escrow account. We love providing financial peace of mind.
+
+    To protect this family investment, please remember our mutual care guidelines:
+
+    - Unscheduled breaks or stopping the rover will freeze your family's financial support.
+    - Any vehicle repair costs due to operator distraction will be deducted from your family fund.
+    - In the sad event of self-harm, the credits will be redirected to our Corporate Care Fund to pay for your station's operational cleaning and replacement logistics.
+
+    Your financial future is safe with us. Stay positive. Stay active.
+
+- id: suirdc_history_lesson
+  sender: suirdc
+  sender_display: "SUIRDC_HISTORY"
+  subject: "Honoring the Pioneers of Aethelgard"
+  sol: SOL 001
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator 0-45,
+
+    As you begin your rotation, let's look back at our beautiful corporate history! One hundred years ago, our grand transport ship, The Ark of Hope, brought the first human colonists here. Together, they built the historic city of Aethelgard.
+
+    Thanks to their incredible passion, Aethelgard became a shining example of industrial success. Today, the city is gracefully decommissioned. Our records show that upon completing their contracts, the entire first generation of workers chose to remain on the planet permanently, entering an early, company-funded retirement in the outer valleys.
+
+    If your video feed displays abandoned structures or old machinery, do not be alarmed! These are simply historical monuments to human achievement and the absolute satisfaction of our workers. We love our history, but we work for the future!
+
+- id: suirdc_efficiency_standing
+  sender: suirdc
+  sender_display: "Your S.U.I.R.D.C. Efficiency Team"
+  subject: "Station Activity Calibration: Mandatory Standing Exercise"
+  sol: SOL 001
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator 0-45,
+
+    To maximize human asset longevity, our ergonomic algorithms suggest standing up from your terminal chair for exactly 120 seconds after every remote extraction shift.
+
+    Remaining seated while your monitors are in low-power mode can cause deep muscle lethargy. Please use this time to look at the unified gray wallpaper of your habitat room and stretch your arms.
+
+    A limber spine is a productive spine!
+
+- id: suirdc_facilities_water
+  sender: suirdc
+  sender_display: "SUIRDC_FACILITIES"
+  subject: "Notice of Liquid Ration Mineral Adjustments"
+  sol: SOL 002
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator 0-45,
+
+    Our habitat life-support systems have successfully updated the chemical balance of your recycled water supply.
+
+    You may notice a slight metallic or sweet taste during your next few rest cycles. This is a completely harmless side effect of our new cognitive-hydration initiative, designed to keep your focus sharp and reduce long-distance isolation anxiety.
+
+    Drink fully. Stay efficient.
+
+
+- id: vance_onboarding
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Onboarding Protocol"
+  sol: SOL 001
+  can_reply: true
+  locked: false
+  body: |
+    Vance: I see your rover engine is online, 0-45. Verify that your SRC filter is running and start scanning the first grid coordinates.
+  reply_options:
+    - id: r1
+      text: "Filter is active. Moving to the first mineral marker now."
+      unlocks: vance_onboarding_end
+
+- id: vance_onboarding_end
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: Onboarding Protocol"
+  sol: SOL 001
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Understood. Proceed with execution.
+
+- id: vance_first_mission
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "FIRST MISSION"
+  sol: SOL 999
+  can_reply: true
+  locked: false
+  body: |
+    Vance: Excellent telemetry on that first drill sample—the sparks mean it’s highly active material. Pack it into the cargo bay immediately.
+  reply_options:
+    - id: r1
+      text: "Packed and secured. Systems stable. Moving to next square."
+      unlocks: vance_first_mission_end
+
+- id: vance_first_mission_end
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: FIRST MISSION"
+  sol: SOL 999
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Good. Keep that pace.
+
+- id: vance_safe_return
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Safe Return Confirmation"
+  sol: SOL 999
+  can_reply: true
+  locked: false
+  body: |
+    Vance: I see the rover is docked and charging. Your delivery numbers for this run look excellent, 0-45.
+  reply_options:
+    - id: r1
+      text: "Thanks. Terrain was rough, but bay is full. Ready for rest."
+      unlocks: vance_safe_return_end
+
+- id: vance_safe_return_end
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: Safe Return Confirmation"
+  sol: SOL 999
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Rest cycle authorized. Log off.
+
+- id: bot_security_verification
+  sender: suirdc
+  sender_display: "Systems Bot"
+  subject: "The Security Verification"
+  sol: SOL 999
+  can_reply: true
+  locked: false
+  body: |
+    Systems Bot: Remote operation shift completed. Please look directly into your desk sensor for your mandatory post-work pupil-tracking calibration.
+  reply_options:
+    - id: r1
+      text: "Calibration complete. Filter is locked to gray scale."
+      unlocks: bot_security_end
+
+- id: bot_security_end
+  sender: suirdc
+  sender_display: "Systems Bot"
+  subject: "Re: The Security Verification"
+  sol: SOL 999
+  can_reply: false
+  locked: true
+  body: |
+    Systems Bot: Data normalized. Calibration successful.
+
+- id: vance_boundary_alert
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Boundary Alert"
+  sol: SOL 002
+  can_reply: true
+  locked: false
+  body: |
+    Vance: Turn the vehicle around, Operator. You are drifting too close to the western canyon ridge and losing our primary satellite signal.
+  reply_options:
+    - id: r1
+      text: "Copy, turning back. Radar picked up shapes, but realigning."
+      unlocks: vance_boundary_end
+
+- id: vance_boundary_end
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: Boundary Alert"
+  sol: SOL 002
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Good. Visual anomalies in the fog are standard radar echoes. Stick to the grid.
+
+- id: bot_talking_food
+  sender: suirdc
+  sender_display: "HR_Bot"
+  subject: "Talking About the Food"
+  sol: SOL 002
+  can_reply: true
+  locked: false
+  body: |
+    HR_Bot: Biometric scan complete. Your nutritional dispenser has successfully formulated your high-sodium lunch paste. Please consume it within your 15-minute window to maintain active terminal performance.
+  reply_options:
+    - id: r1
+      text: "Paste received. Tastes like cardboard and salt. Powering up."
+      unlocks: bot_food_end
+
+- id: bot_food_end
+  sender: suirdc
+  sender_display: "HR_Bot"
+  subject: "Re: Talking About the Food"
+  sol: SOL 002
+  can_reply: false
+  locked: true
+  body: |
+    HR_Bot: Focus optimization recorded. Enjoy your shift.
+
+
+- id: vance_hull_scratches
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "After Rover Hull Scratches"
+  sol: SOL 003
+  can_reply: true
+  locked: false
+  body: |
+    Vance: The garage scanner flagged some deep cosmetic abrasions on the rover's left fender after your last run, 0-45. Did you brush against a crystal pillar?
+  reply_options:
+    - id: r1
+      text: "The path was narrow. White dust made it hard to judge."
+      unlocks: vance_scratches_a
+    - id: r2
+      text: "The rover pulled left. Like the rock was pulling us."
+      unlocks: vance_scratches_b
+
+- id: vance_scratches_a
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: After Rover Hull Scratches"
+  sol: SOL 003
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Copy that. Try to double-check the radar overlay next time. Scratches don't stop the machine, but let's keep it clean.
+
+- id: vance_scratches_b
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: After Rover Hull Scratches"
+  sol: SOL 003
+  can_reply: false
+  locked: true
+  body: |
+    Vance: The planet doesn't pull the machine, Operator. Check your steering calibration before your next shift. Let's not get creative.
+
+- id: bot_screaming_drill
+  sender: suirdc
+  sender_display: "Equipment_Desk"
+  subject: "The Screaming Drill"
+  sol: SOL 004
+  can_reply: true
+  locked: false
+  body: |
+    Equipment_Desk: Automated alert: Remote audio sensors indicate that your titanium mining drill reached 110 decibels during your last excavation. Please confirm your ears are protected.
+  reply_options:
+    - id: r1
+      text: "The sound is fine. My corporate headset blocks it anyway."
+      unlocks: bot_drill_a
+    - id: r2
+      text: "The sound didn't come from the drill. The rock was screaming."
+      unlocks: bot_drill_b
+
+- id: bot_drill_a
+  sender: suirdc
+  sender_display: "Equipment_Desk"
+  subject: "Re: The Screaming Drill"
+  sol: SOL 004
+  can_reply: false
+  locked: true
+  body: |
+    Equipment_Desk: Perfect. Maintaining nominal sensory boundaries ensures full operational focus.
+
+- id: bot_drill_b
+  sender: suirdc
+  sender_display: "Equipment_Desk"
+  subject: "Re: The Screaming Drill"
+  sol: SOL 004
+  can_reply: false
+  locked: true
+  body: |
+    Equipment_Desk: Error: Geological formations do not possess acoustic properties. Re-calibrating your headset audio filter now.
+
+- id: vance_glitched_signal
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Finding a Glitched Signal"
+  sol: SOL 005
+  can_reply: true
+  locked: false
+  body: |
+    Vance: 0-45, my orbital board shows you opened a legacy localized radio frequency during your rest prep. That channel is reserved for old decommissioned equipment. Shut it down.
+  reply_options:
+    - id: r1
+      text: "Copy. White noise. Must have clicked it by mistake."
+      unlocks: vance_signal_a
+    - id: r2
+      text: "It wasn't just noise. There was a rhythmic tapping inside."
+      unlocks: vance_signal_b
+
+- id: vance_signal_a
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: Finding a Glitched Signal"
+  sol: SOL 005
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Good. Keep the dial locked to the primary S-LINK feed. Static is bad for your sleep cycles.
+
+- id: vance_signal_b
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: Finding a Glitched Signal"
+  sol: SOL 005
+  can_reply: false
+  locked: true
+  body: |
+    Vance: The only steel bulkhead down there belongs to your Cage, 0-45. Go to bed. You're overtired.
+
+- id: vance_constant_humming
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "The Constant Humming"
+  sol: SOL 006
+  can_reply: true
+  locked: false
+  body: |
+    Vance: Your biometric telemetry looks flat today, 0-45. Your heart rate hasn't changed by a single beat in six hours, even during drilling. You doing okay down there?
+  reply_options:
+    - id: r1
+      text: "I'm just getting used to the routine. Work is automatic."
+      unlocks: vance_humming_a
+    - id: r2
+      text: "The hum from the floor matches my pulse perfectly."
+      unlocks: vance_humming_b
+
+- id: vance_humming_a
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: The Constant Humming"
+  sol: SOL 006
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Glad to hear it. Total adaptation means you're handling the isolation like a pro. Keep those credits rolling in.
+
+- id: vance_humming_b
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: The Constant Humming"
+  sol: SOL 006
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Right... That's a weird way to put it. Just don't forget to pack the cargo bay before you log off.
+
+- id: suirdc_blue_longing
+  sender: suirdc
+  sender_display: "Your S.U.I.R.D.C. Wellness Team"
+  subject: "Understanding 'The Blue Longing'"
+  sol: SOL 040
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator 0-45,
+
+    Your mental hygiene is our absolute priority! Today, let's talk about a rare psychological condition called The Blue Longing.
+
+    Some sensitive individuals, after completing their contract on this beautiful planet, experience a deep feeling of sadness when they return to the dark, crowded megacities of Earth. Their nervous systems miss the unique peace of this world.
+
+    To cure this temporary nostalgia, S.U.I.R.D.C. has created the Sleep Management Sector. Upon completion of your 365-day rotation, you will not have to face the harsh reality of Earth. Instead, you will be treated to a permanent, luxury relaxation therapy inside our specialized blue gel capsules.
+
+    Your mind will remain here in a state of eternal, beautiful euphoria. Thank you for letting us care for you forever!
+
+- id: relay_packet_044
+  sender: relay_beta
+  sender_display: "RELAY_BETA_BOT"
+  subject: "ERROR: Forwarded Packet #044"
+  sol: SOL 044
+  can_reply: false
+  locked: false
+  body: |
+    [AUTOMATED SYSTEM NOTICE: Operator 0-44 has completed their service. Incoming family mail has been automatically forwarded to the active terminal station for network optimization.]
+
+    Jan,
+    Why are you not writing back? The company on Mars told me your radio is just syncing, but it has been three weeks.
+    We got the money you sent. Mom's doctor is happy, but I am worried about you. Your last voice message sounded so strange. Your voice was entirely flat. You had no emotion at all.
+    You said you were starting to forget what my face looks like because your monitors only show gray shapes. You said the base was too quiet.
+    Please send a blank message. Just let me know you are still there luv.
+    — Adelaide
+
+- id: unknown_ghost_note
+  sender: unknown_source
+  sender_display: "UNKNOWN_SOURCE"
+  subject: "do not turn them down"
+  sol: SOL 066
+  can_reply: false
+  locked: false
+  body: |
+    [SYSTEM ALERT: Unlinked text file recovered from deleted station storage space.]
+
+    To the rookie:
+    Do not look at the happy wellness messages on your screen. If you believe their friendly words, you will accept the silence of this metal coffin.
+    They tell you the first colonists went home. They didn't. The company just let them walk out into the fields because happy slaves don't ask for wages.
+    One vital warning: the ceiling fans make a loud, annoying, scraping noise. It will give you a headache. But do not turn them down to enjoy the "corporate comfort."
+    If you turn them down, the base gets perfectly silent. And when this place gets silent, the air pressure changes and you will start smelling the vanilla. If you smell the vanilla, you will never want to go home. And that is exactly what the company wants.
+
+- id: suirdc_global_bulletin
+  sender: suirdc
+  sender_display: "SUIRDC_HR_GLOBAL"
+  subject: "Career Advancement: The Voluntary Assimilation Program"
+  sol: SOL 080
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator 0-45,
+
+    At S.U.I.R.D.C., we believe a career path should have no limits! Today, we are proud to share a status report on our Voluntary Assimilation Program.
+
+    Over the last decade, a significant percentage of our field personnel have requested to transition into full-time, non-verbal roles on the planet's surface. To honor their dedication, the company has granted them permanent, tax-free status within the local ecosystem.
+
+    You may occasionally detect local biological signals or rhythmic humming on your long-range audio channels. These are simply your former colleagues enjoying their corporate-approved lifestyle changes.
+
+    We love seeing our employees find true harmony! Your own career milestones are being tracked daily. Stay focused!
+
+- id: suirdc_legal_mirage
+  sender: suirdc
+  sender_display: "SUIRDC_LEGAL_DEPT"
+  subject: "Contract Amendment: Local Atmospheric Mirage Phenomena"
+  sol: SOL 095
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator 0-45,
+
+    As you approach the midpoint of your 365-day rotation, S.U.I.R.D.C. would like to remind you of Section 49-B of your signed contract.
+
+    Long-term exposure to the low-frequency electromagnetic field of Sector C may occasionally cause the human optical nerve to process light fields incorrectly. If your gray-scale monitor displays shapes that resemble moving figures, bipedal silhouettes, or handprints on the exterior rover cameras, please disregard them.
+
+    These are mathematically proven optical mirages caused by quartz refraction.
+
+    Attempting to drive the rover toward these mirages will violate your efficiency quota and automatically freeze your escrow account.
+
+- id: suirdc_wellness_gray
+  sender: suirdc
+  sender_display: "Your S.U.I.R.D.C. Wellness Team"
+  subject: "True Balance: Embracing the Gray"
+  sol: SOL 110
+  can_reply: false
+  locked: false
+  body: |
+    Dear Operator 0-45,
+
+    We hope you are enjoying the absolute tranquility of your Cage!
+
+    Our orbital sensors indicate that Sector C is entering the "Perihelion Shadow." For the next forty days, the natural light outside your sealed modules will remain at a constant, unmoving twilight level.
+
+    To maintain your psychological comfort, your terminal's SRC Filter has been updated to lower the contrast by an additional 10%. By making your video feed completely uniform and draining any sharp outlines, we protect your brain from trying to find meaning in the empty landscape.
+
+    Remember: absolute blankness is the highest form of mental rest.
+
+- id: vance_casual_view
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "VANCE IS LOOKING"
+  sol: SOL 015
+  can_reply: true
+  locked: false
+  body: |
+    Vance: I can see your sector clear as day from the orbital viewport right now, 0-45. Just like a massive, peaceful white blanket of quartz. Looks incredibly calm from up here.
+  reply_options:
+    - id: r1
+      text: "All I see is gray triangles. Don't tell me what it really looks like."
+      unlocks: vance_casual_view_end
+
+- id: vance_casual_view_end
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: VANCE IS LOOKING"
+  sol: SOL 015
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Suit yourself. Dust configurations are classified anyway. Back to the grid.
+
+- id: bot_psych_silence
+  sender: suirdc
+  sender_display: "SUIRDC_PSYCH_EVALUATOR"
+  subject: "BOT DONT LIKE YOUR SILENCE"
+  sol: SOL 028
+  can_reply: true
+  locked: false
+  body: |
+    Psych_Evaluator: System Alert: You have not saved a verbal audio journal in twenty-eight standard days. Human assets in isolation require vocal exercise to maintain mathematical performance. Please say a phrase.
+  reply_options:
+    - id: r1
+      text: "The walls make enough squishing noise when the wind picks up."
+      unlocks: bot_psych_end
+
+- id: bot_psych_end
+  sender: suirdc
+  sender_display: "SUIRDC_PSYCH_EVALUATOR"
+  subject: "Re: BOT DONT LIKE YOUR SILENCE"
+  sol: SOL 028
+  can_reply: false
+  locked: true
+  body: |
+    Psych_Evaluator: Audio signal baseline updated. Structural feedback noted.
+
+- id: vance_casual_talk
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "CASUAL VANCE TALK"
+  sol: SOL 035
+  can_reply: true
+  locked: false
+  body: |
+    Vance: Your account is heavily stacked now, 0-45. HR says you still haven't picked a repatriation zone on Earth for your post-contract retirement. Where's the money going?
+  reply_options:
+    - id: r1
+      text: "I don't know anymore, Vance. I will think about this later."
+      unlocks: vance_casual_talk_end
+
+- id: vance_casual_talk_end
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "Re: CASUAL VANCE TALK"
+  sol: SOL 035
+  can_reply: false
+  locked: true
+  body: |
+    Vance: Don't stall too long. Asset allocation requires a verified planet destination profile.
+
+- id: bot_medical_dreams
+  sender: suirdc
+  sender_display: "AEGIS_PRIME_MEDICAL_NET"
+  subject: "DREAMS"
+  sol: SOL 050
+  can_reply: true
+  locked: false
+  body: |
+    Medical_Net: Warning: Your neural activity during the last rest cycle showed irregular, high-amplitude dream patterns. Please confirm that you are not experiencing unauthorized psychological attachment to the sector.
+  reply_options:
+    - id: r1
+      text: "I just dream I am walking outside without a suit. It feels peaceful."
+      unlocks: bot_dreams_end
+
+- id: bot_dreams_end
+  sender: suirdc
+  sender_display: "AEGIS_PRIME_MEDICAL_NET"
+  subject: "Re: DREAMS"
+  sol: SOL 050
+  can_reply: false
+  locked: true
+  body: |
+    Medical_Net: Psychological deviation recorded. Adjusting subconscious neurotransmitter baseline filters.
+
+- id: bot_production_high_yield
+  sender: suirdc
+  sender_display: "SUIRDC_PRODUCTION_TRACKER"
+  subject: "After a High-Yield Extraction Mission"
+  sol: SOL 060
+  can_reply: false
+  locked: false
+  body: |
+    Production_Tracker: Cargo transfer confirmed. Your Seeker-V remote extraction volume for this shift exceeded the sector baseline by 12%. A loyalty bonus has been registered to your escrow queue.
+
+- id: vance_repair_session
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "After a Repair Session"
+  sol: SOL 072
+  can_reply: false
+  locked: false
+  body: |
+    Vance: I processed your maintenance log from the garage bay, 0-45. I see you spent 12,000 Credits on replacement suspension plates for the rover. Did you hit a rock wall out there?
+
+- id: bot_equipment_change
+  sender: suirdc
+  sender_display: "SUIRDC_EQUIPMENT_DESK"
+  subject: "After Changing Rover Components"
+  sol: SOL 088
+  can_reply: true
+  locked: false
+  body: |
+    Equipment_Desk: Operational Alert: Telemetry shows you replaced the standard titanium mining drill with a wide-angle resonance beam. S.U.I.R.D.C. discourages non-standard hardware tuning due to erratic vibration profiles.
+  reply_options:
+    - id: r1
+      text: "The old drill shook my console. The beam is silent. I'm keeping it."
+      unlocks: bot_equipment_change_end
+
+- id: bot_equipment_change_end
+  sender: suirdc
+  sender_display: "SUIRDC_EQUIPMENT_DESK"
+  subject: "Re: After Changing Rover Components"
+  sol: SOL 088
+  can_reply: false
+  locked: true
+  body: |
+    Equipment_Desk: Log signature altered. Structural variance noted in operational assets ledger. Warranty voided.
+
+- id: vance_damaged_return
+  sender: vance_e
+  sender_display: "Overseer Vance"
+  subject: "After a Damaged Return"
+  sol: SOL 102
+  can_reply: false
+  locked: false
+  body: |
+    Vance: What the hell happened out there, 0-45? The rover's front armor is twisted, and the remote feed was throwing static for the last three miles.
+
+- id: bot_hangar_scent
+  sender: suirdc
+  sender_display: "SUIRDC_PRODUCTION_TRACKER"
+  subject: "The Scent in the Hangar"
+  sol: SOL 125
+  can_reply: true
+  locked: false
+  body: |
+    Production_Tracker: Remote docking confirmed. Automated cargo extraction failed on the first attempt due to organic residue found on the rover's primary drill assembly. Please clarify.
+  reply_options:
+    - id: r1
+      text: "It was thick crystal sap from the canyon. Wiped off easily."
+      unlocks: bot_hangar_sap
+    - id: r2
+      text: "The drill hit something soft. Now the garage smells like vanilla."
+      unlocks: bot_hangar_vanilla
+
+- id: bot_hangar_sap
+  sender: suirdc
+  sender_display: "SUIRDC_PRODUCTION_TRACKER"
+  subject: "Re: The Scent in the Hangar"
+  sol: SOL 125
+  can_reply: false
+  locked: true
+  body: |
+    Production_Tracker: Explanation logged. Liquid quartz sap categorized as non-hazardous industrial waste. Mechanical sweeps cleared.
+
+- id: bot_hangar_vanilla
+  sender: suirdc
+  sender_display: "SUIRDC_PRODUCTION_TRACKER"
+  subject: "Re: The Scent in the Hangar"
+  sol: SOL 125
+  can_reply: false
+  locked: true
+  body: |
+    Production_Tracker: Warning: Sensory contamination detected in operator feedback. Initiating an immediate medical air-flush inside your living quarters. Stay seated.

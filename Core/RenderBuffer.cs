@@ -1,0 +1,93 @@
+﻿using System.Text;
+
+namespace ExoProxy.Core;
+
+public sealed class RenderBuffer : IRenderBuffer
+{
+    private readonly char[,] _chars;
+    private readonly string?[,] _colors;
+    private readonly StringBuilder _sb = new();
+
+    public int Width { get; }
+    public int Height { get; }
+
+    public RenderBuffer(int width, int height)
+    {
+        Width = width;
+        Height = height;
+        _chars = new char[width, height];
+        _colors = new string?[width, height];
+        Clear();
+    }
+
+    public void WriteAt(int x, int y, string text)
+    {
+        if (y < 0 || y >= Height) return;
+        for (int i = 0; i < text.Length && x + i < Width; i++)
+        {
+            if (x + i < 0) continue;
+            _chars[x + i, y] = text[i];
+        }
+    }
+
+    public void WriteAt(int x, int y, string text, string ansiColor)
+    {
+        if (y < 0 || y >= Height) return;
+        for (int i = 0; i < text.Length && x + i < Width; i++)
+        {
+            if (x + i < 0) continue;
+            _chars[x + i, y] = text[i];
+            _colors[x + i, y] = ansiColor;
+        }
+    }
+
+    public void WriteAt(int x, int y, char c)
+    {
+        if (x < 0 || x >= Width || y < 0 || y >= Height) return;
+        _chars[x, y] = c;
+    }
+
+    public void WriteAt(int x, int y, char c, string ansiColor)
+    {
+        if (x < 0 || x >= Width || y < 0 || y >= Height) return;
+        _chars[x, y] = c;
+        _colors[x, y] = ansiColor;
+    }
+
+    public void Clear()
+    {
+        for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+            {
+                _chars[x, y] = ' ';
+                _colors[x, y] = null;
+            }
+    }
+
+    public string Flush()
+    {
+        _sb.Clear();
+
+        int xOff = Math.Max(0, (Console.WindowWidth  - Width)  / 2);
+        int yOff = Math.Max(0, (Console.WindowHeight - Height) / 2);
+
+        string? lastColor = null;
+
+        for (int y = 0; y < Height; y++)
+        {
+            _sb.Append(ExoCodes.MoveTo(xOff + 1, y + yOff + 1));
+            for (int x = 0; x < Width; x++)
+            {
+                string? color = _colors[x, y];
+                if (color != lastColor)
+                {
+                    _sb.Append(color ?? ExoCodes.Reset);
+                    lastColor = color;
+                }
+                _sb.Append(_chars[x, y]);
+            }
+        }
+
+        return _sb.ToString();
+    }
+}
