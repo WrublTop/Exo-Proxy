@@ -17,8 +17,8 @@ public class OperatorRegistry
 
     private static readonly List<OperatorAccount> _defaults =
     [
-        new OperatorAccount { Login = "E.VOSS",     PasswordHash = Hash("XXXX"), RegisteredDate = "03.02.1297 AJD", Status = OperatorStatus.Terminated },
-        new OperatorAccount { Login = "M.CALLOWAY", PasswordHash = Hash("XXXX"), RegisteredDate = "17.02.1297 AJD", Status = OperatorStatus.Terminated },
+        new OperatorAccount { Login = "E.VOSS",     PasswordHash = PasswordHasher.Hash("XXXX"), RegisteredDate = "03.02.1297 AJD", Status = OperatorStatus.Terminated },
+        new OperatorAccount { Login = "M.CALLOWAY", PasswordHash = PasswordHasher.Hash("XXXX"), RegisteredDate = "17.02.1297 AJD", Status = OperatorStatus.Terminated },
     ];
 
     public List<OperatorAccount> Accounts { get; private set; } = [];
@@ -40,6 +40,7 @@ public class OperatorRegistry
         }
         catch
         {
+            SaveGuard.Quarantine(_savePath);
             Accounts = [.. _defaults];
             Sort();
         }
@@ -55,7 +56,7 @@ public class OperatorRegistry
     {
         account = Accounts.FirstOrDefault(a =>
             a.Login == login.ToUpper() &&
-            a.PasswordHash == Hash(password));
+            a.PasswordHash == PasswordHasher.Hash(password));
         return account is not null;
     }
 
@@ -67,7 +68,7 @@ public class OperatorRegistry
         var account = new OperatorAccount
         {
             Login          = login.ToUpper(),
-            PasswordHash   = Hash(password),
+            PasswordHash   = PasswordHasher.Hash(password),
             RegisteredDate = DateTime.Now.ToString("dd.MM.1297 AJD"),
             Status         = OperatorStatus.Active
         };
@@ -97,10 +98,4 @@ public class OperatorRegistry
         _                         => 3
     };
 
-    private static string Hash(string input)
-    {
-        using var sha = System.Security.Cryptography.SHA256.Create();
-        var bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes);
-    }
 }

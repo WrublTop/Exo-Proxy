@@ -57,38 +57,6 @@ public sealed class GameLoop
         }
     }
 
-    public async Task RunAsync(CancellationToken ct)
-    {
-        var frameTime = TimeSpan.FromSeconds(1.0 / _targetFps);
-        var totalTime = TimeSpan.Zero;
-        var previous  = DateTimeOffset.UtcNow;
-
-        while (!ct.IsCancellationRequested)
-        {
-            var now   = DateTimeOffset.UtcNow;
-            var delta = now - previous;
-            previous  = now;
-            totalTime += delta;
-            var gt = new GameTime(totalTime, delta);
-
-            var events = new List<InputEvent>();
-            while (_input.TryRead(out var ie))
-                events.Add(ie);
-
-            if (events.Count == 0)
-                _screenManager.Update(gt, null);
-            else
-                foreach (var ev in events)
-                    _screenManager.Update(gt, ev);
-
-            RenderFrame();
-
-            var elapsed = DateTimeOffset.UtcNow - now;
-            if (elapsed < frameTime)
-                await Task.Delay(frameTime - elapsed, ct);
-        }
-    }
-
     private void RenderFrame()
     {
         int cw = Console.WindowWidth;

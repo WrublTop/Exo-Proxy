@@ -6,7 +6,8 @@ public interface IRenderBuffer
     int Height { get; }
     void WriteAt(int x, int y, string text);
     void WriteAt(int x, int y, string text, string ansiColor);
-    void WriteRaw(int x, int y, string rawAnsiString);
+    void WriteAt(int x, int y, char c);
+    void WriteAt(int x, int y, char c, string ansiColor);
     void Clear();
     string Flush();
 }

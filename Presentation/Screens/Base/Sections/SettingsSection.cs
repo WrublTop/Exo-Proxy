@@ -5,7 +5,7 @@ namespace ExoProxy.Presentation.Screens.Base.Sections;
 
 public sealed class SettingsSection : IBaseSection
 {
-    public string SectionId => "settings";
+    public string SectionId => SectionIds.Settings;
     public BaseSectionResponse Response { get; private set; } = new(BaseSectionRequest.Stay, null);
 
     private readonly GameSettings _settings;
@@ -19,9 +19,7 @@ public sealed class SettingsSection : IBaseSection
     private string _newPasswordBuffer = "";
     private string _message = "";
     private bool _messageIsError;
-    private bool _blinkVisible = true;
-    private DateTimeOffset _blinkTimer;
-    private const int BlinkMs = 500;
+    private BlinkState _blink;
 
     private const int BoxWidth = 64;
     private const int BoxInner = BoxWidth - 2;
@@ -48,7 +46,6 @@ public sealed class SettingsSection : IBaseSection
         _settings   = settings;
         _account    = account;
         _registry   = registry;
-        _blinkTimer = DateTimeOffset.UtcNow;
 
         _items = BuildItems();
         _selectableIndices = _items
@@ -80,7 +77,7 @@ public sealed class SettingsSection : IBaseSection
             new() { Label = "Theme",              Values = themes,    ValueIndex = Idx(themes,    _settings.Theme),           Key = "theme" },
             new() { Label = "Brightness",         Values = bright,    ValueIndex = Idx(bright,    _settings.Brightness),      Key = "brightness" },
             new() { Label = "Contrast",           Values = contrast,  ValueIndex = Idx(contrast,  _settings.Contrast),        Key = "contrast" },
-            new() { Label = "Animations",         IsBoolean = true,   ValueIndex = _settings.Animations == "ON" ? 0 : 1,      Key = "animations" },
+            new() { Label = "Animations",         IsBoolean = true,   ValueIndex = _settings.Animations ? 0 : 1,              Key = "animations" },
             new() { Label = "",               IsHeader = true },
             new() { Label = "SYSTEM",         IsHeader = true },
             new() { Label = "Language",           Values = languages, ValueIndex = Idx(languages, _settings.Language),        Key = "language" },
@@ -94,15 +91,12 @@ public sealed class SettingsSection : IBaseSection
 
     private Item SelectedItem => _items[_selectableIndices[_selectedNavIndex]];
 
-    public void Update(DateTimeOffset now, InputEvent? input)
+    public void Update(GameTime time, InputEvent? input)
     {
-        Response = new(BaseSectionRequest.Stay, null);
+        var now = time.Total;
+        _blink.Update(now);
 
-        if (now - _blinkTimer >= TimeSpan.FromMilliseconds(BlinkMs))
-        {
-            _blinkVisible = !_blinkVisible;
-            _blinkTimer   = now;
-        }
+        Response = new(BaseSectionRequest.Stay, null);
 
         if (input is null) return;
 
@@ -204,7 +198,7 @@ public sealed class SettingsSection : IBaseSection
                 return;
             }
             var acc = _registry.Accounts.FirstOrDefault(a => a.Login == _account.Login);
-            if (acc is not null) { acc.PasswordHash = Hash(_input); _registry.Save(); }
+            if (acc is not null) { acc.PasswordHash = PasswordHasher.Hash(_input); _registry.Save(); }
             _input = ""; _newPasswordBuffer = "";
             _message = "Password changed."; _messageIsError = false;
             _mode = Mode.Browse;
@@ -223,7 +217,9 @@ public sealed class SettingsSection : IBaseSection
         if (key.KeyChar == 'y' || key.KeyChar == 'Y')
         {
             _registry.ResetToDefaults();
-            Environment.Exit(0);
+            // Exit through the session pipeline — Environment.Exit would skip
+            // the finally block in Program.cs and leave the terminal broken.
+            Response = new(BaseSectionRequest.ExitGame, null);
         }
     }
 
@@ -235,20 +231,20 @@ public sealed class SettingsSection : IBaseSection
 
         switch (item.Key)
         {
-            case "theme":       _settings.Theme           = val; break;
-            case "brightness":  _settings.Brightness      = val; break;
-            case "contrast":    _settings.Contrast        = val; break;
-            case "animations":  _settings.Animations      = val; break;
-            case "language":    _settings.Language        = val; break;
-            case "typewriter":  _settings.TypewriterSpeed = val; break;
+            case "theme":
+                _settings.Theme = val;
+                ExoColors.Apply(_settings.Theme, _settings.Brightness);
+                break;
+            case "brightness":
+                _settings.Brightness = val;
+                ExoColors.Apply(_settings.Theme, _settings.Brightness);
+                break;
+            case "contrast":    _settings.Contrast        = val; break; // TODO: unwired — implement with gameplay UI pass
+            case "animations":  _settings.Animations      = val == "ON"; break; // TODO: unwired — should gate boot/transfer animations
+            case "language":    _settings.Language        = val; break; // TODO: unwired — requires a string table
+            case "typewriter":  _settings.TypewriterSpeed = val; break; // TODO: unwired — no consumer yet
         }
         _settings.Save();
-    }
-
-    private static string Hash(string input)
-    {
-        using var sha = System.Security.Cryptography.SHA256.Create();
-        return Convert.ToHexString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input)));
     }
 
     public void Render(IRenderBuffer buffer)
@@ -293,8 +289,8 @@ public sealed class SettingsSection : IBaseSection
             }
 
             // selection indicator
-            if (sel) buffer.WriteAt(left + 2, row, _blinkVisible ? "►" : "▷",
-                _blinkVisible ? ExoColors.PhosphorText : ExoColors.PhosphorDim);
+            if (sel) buffer.WriteAt(left + 2, row, _blink.Visible ? "►" : "▷",
+                _blink.Visible ? ExoColors.PhosphorText : ExoColors.PhosphorDim);
 
             string labelColor = sel ? ExoColors.PhosphorText : ExoColors.ProksPale;
             buffer.WriteAt(left + 4, row, item.Label, labelColor);
@@ -358,7 +354,7 @@ public sealed class SettingsSection : IBaseSection
         buffer.WriteAt(left,                                    top + 3, "│", ExoColors.ProksBorder);
         buffer.WriteAt(left + 2,                                top + 3, label,  ExoColors.ProksPale);
         buffer.WriteAt(left + 2 + label.Length,                 top + 3, masked, ExoColors.PhosphorText);
-        if (_blinkVisible)
+        if (_blink.Visible)
             buffer.WriteAt(left + 2 + label.Length + masked.Length, top + 3, "_", ExoColors.PhosphorDim);
         buffer.WriteAt(left + BoxWidth - 1,                     top + 3, "│", ExoColors.ProksBorder);
         buffer.WriteAt(left, top + 4, "│" + new string(' ', BoxInner) + "│", ExoColors.ProksBorder);

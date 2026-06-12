@@ -41,11 +41,17 @@ public sealed class RenderBuffer : IRenderBuffer
         }
     }
 
-    public void WriteRaw(int x, int y, string rawAnsiString)
+    public void WriteAt(int x, int y, char c)
     {
         if (x < 0 || x >= Width || y < 0 || y >= Height) return;
-        _chars[x, y] = '\0';
-        _colors[x, y] = rawAnsiString;
+        _chars[x, y] = c;
+    }
+
+    public void WriteAt(int x, int y, char c, string ansiColor)
+    {
+        if (x < 0 || x >= Width || y < 0 || y >= Height) return;
+        _chars[x, y] = c;
+        _colors[x, y] = ansiColor;
     }
 
     public void Clear()
@@ -78,7 +84,7 @@ public sealed class RenderBuffer : IRenderBuffer
                     _sb.Append(color ?? ExoCodes.Reset);
                     lastColor = color;
                 }
-                _sb.Append(_chars[x, y] == '\0' ? "" : _chars[x, y]);
+                _sb.Append(_chars[x, y]);
             }
         }
 

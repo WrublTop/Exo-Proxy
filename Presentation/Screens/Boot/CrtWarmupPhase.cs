@@ -6,25 +6,32 @@ public sealed class CrtWarmupPhase : IBootPhase
 {
     private static readonly string _suirdcText = "SUPERVISORY UNITED INTERSTELLAR RESEARCH AND DEVELOPMENT CONSORTIUM";
     private static readonly string _suirdcLine = new string('═', 70);
-    private DateTimeOffset _startTime;
-    private DateTimeOffset _blinkTimer;
+
+    // Anchored on the first Update tick — phases must not start their clocks
+    // at construction time (they may be created long before they run).
+    private TimeSpan? _startTime;
+    private TimeSpan  _blinkTimer;
     private readonly Random _rng;
     private bool _blinkVisible;
     private int _blinkInterval;
 
     public CrtWarmupPhase()
     {
-        _startTime = DateTimeOffset.UtcNow;
-        _blinkTimer = DateTimeOffset.UtcNow;
         _rng = new Random();
         _blinkVisible = true;
         _blinkInterval = 150;
     }
 
-    public void Update(DateTimeOffset now, InputEvent? input)
+    public void Update(GameTime time, InputEvent? input)
     {
+        var now = time.Total;
+        if (_startTime is null)
+        {
+            _startTime  = now;
+            _blinkTimer = now;
+        }
 
-        var elapsed = now - _startTime;
+        var elapsed = now - _startTime.Value;
         if (elapsed < TimeSpan.FromMilliseconds(800))
         {
             if (now - _blinkTimer >= TimeSpan.FromMilliseconds(_blinkInterval))

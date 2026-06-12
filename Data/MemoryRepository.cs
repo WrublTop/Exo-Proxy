@@ -5,8 +5,9 @@ namespace ExoProxy.Data;
 
 public class MemoryRepository
 {
-    public const int RoverCapacity = 64;
-    public const int LocalCapacity = 64;
+    public const int RoverCapacity  = 32;
+    public const int LocalCapacity  = 32;
+    public const int SuirdcCapacity = 16;
 
     private static readonly string _contentPath =
         Path.Combine(AppContext.BaseDirectory, "Content", "memory_files.yaml");
@@ -25,6 +26,9 @@ public class MemoryRepository
     private List<MemoryFile>   _allFiles = [];
     private MemoryStorageState _state    = new();
 
+    // Set when a file existed but could not be parsed.
+    public string? LoadWarning { get; private set; }
+
     public void Load(string operatorLogin)
     {
         _statePath = Path.Combine(AppContext.BaseDirectory, "SaveData",
@@ -33,13 +37,24 @@ public class MemoryRepository
         if (File.Exists(_contentPath))
         {
             try { _allFiles = _deserializer.Deserialize<List<MemoryFile>>(File.ReadAllText(_contentPath)) ?? []; }
-            catch { _allFiles = []; }
+            catch
+            {
+                // Content file is shipped data, not a save — never quarantined.
+                _allFiles = [];
+                LoadWarning = "TAPE INDEX UNREADABLE — CONTACT SUIRDC MAINTENANCE";
+            }
         }
 
         if (File.Exists(_statePath))
         {
             try { _state = _deserializer.Deserialize<MemoryStorageState>(File.ReadAllText(_statePath)) ?? new(); }
-            catch { _state = new(); }
+            catch
+            {
+                SaveGuard.Quarantine(_statePath);
+                InitDefaultState();
+                Save();
+                LoadWarning = "MEMORY CHECKSUM FAILURE — STATE RESTORED FROM DEFAULTS";
+            }
         }
         else
         {
@@ -49,6 +64,7 @@ public class MemoryRepository
 
         _state.RoverBlocks = PadLayout(_state.RoverBlocks, RoverCapacity);
         _state.LocalBlocks = PadLayout(_state.LocalBlocks, LocalCapacity);
+        SanitizeState();
     }
 
     private void InitDefaultState()
@@ -84,18 +100,45 @@ public class MemoryRepository
         return layout;
     }
 
+    // Drops unknown file ids and files whose on-tape block count no longer
+    // matches the catalogue (e.g. after a capacity change truncated a layout).
+    // A partial file is worse than no file — it lies about its size.
+    private void SanitizeState()
+    {
+        SanitizeLayout(_state.RoverBlocks);
+        SanitizeLayout(_state.LocalBlocks);
+        _state.SuirdcFiles.RemoveAll(id => GetFile(id) == null);
+    }
+
+    private void SanitizeLayout(List<string> layout)
+    {
+        foreach (var id in layout.Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList())
+        {
+            var file = GetFile(id);
+            bool valid = file != null && layout.Count(x => x == id) == file.Blocks;
+            if (valid) continue;
+            for (int i = 0; i < layout.Count; i++)
+                if (layout[i] == id) layout[i] = "";
+        }
+    }
+
     // ── queries ───────────────────────────────────────────────────────────────
 
     public MemoryFile? GetFile(string id) =>
         _allFiles.FirstOrDefault(f => f.Id == id);
 
-    public List<string?> GetLayout(string location)
+    public List<string?> GetLayout(StorageLocation location)
     {
-        var raw = location == "rover" ? _state.RoverBlocks : _state.LocalBlocks;
+        var raw = location switch
+        {
+            StorageLocation.Rover => _state.RoverBlocks,
+            StorageLocation.Local => _state.LocalBlocks,
+            _                     => [],   // SUIRDC is not block-addressed
+        };
         return raw.Select(x => string.IsNullOrEmpty(x) ? (string?)null : x).ToList();
     }
 
-    public List<MemoryFile> GetFilesAt(string location)
+    public List<MemoryFile> GetFilesAt(StorageLocation location)
     {
         var layout = GetLayout(location);
         var seen   = new HashSet<string>();
@@ -118,6 +161,8 @@ public class MemoryRepository
               .Select(f => f!)
               .ToList();
 
+    public int GetSuirdcUsed() => GetSuirdcFiles().Sum(f => f.Blocks);
+
     public bool IsFragmented(string fileId, List<string?> layout)
     {
         var positions = layout.Select((id, i) => (id, i))
@@ -129,10 +174,16 @@ public class MemoryRepository
         return false;
     }
 
-    public int GetUsed(string location)  => GetLayout(location).Count(x => x != null);
-    public int GetCapacity(string location) => location == "rover" ? RoverCapacity : LocalCapacity;
+    public int GetUsed(StorageLocation location) => GetLayout(location).Count(x => x != null);
 
-    public int GetFragmentPercent(string location)
+    public int GetCapacity(StorageLocation location) => location switch
+    {
+        StorageLocation.Rover => RoverCapacity,
+        StorageLocation.Local => LocalCapacity,
+        _                     => SuirdcCapacity,
+    };
+
+    public int GetFragmentPercent(StorageLocation location)
     {
         var layout  = GetLayout(location);
         var ids     = layout.Where(x => x != null).Distinct().ToList();
@@ -144,17 +195,18 @@ public class MemoryRepository
     // ── mutations ─────────────────────────────────────────────────────────────
 
     // Move file from rover to local station (removes from rover).
-    public bool MoveToLocal(string fileId)
+    public TransferResult MoveToLocal(string fileId)
     {
         var file = GetFile(fileId);
-        if (file == null) return false;
-        if (!_state.RoverBlocks.Any(x => x == fileId)) return false;
-        if (_state.LocalBlocks.Any(x => x == fileId))  return false;
+        if (file == null)                              return TransferResult.SourceMissing;
+        // AlreadyStored before SourceMissing — a re-moved file is absent from
+        // the source precisely because it already sits at the destination.
+        if (_state.LocalBlocks.Any(x => x == fileId))  return TransferResult.AlreadyStored;
+        if (!_state.RoverBlocks.Any(x => x == fileId)) return TransferResult.SourceMissing;
 
         int free = _state.LocalBlocks.Count(x => string.IsNullOrEmpty(x));
-        if (free < file.Blocks) return false;
+        if (free < file.Blocks) return TransferResult.InsufficientSpace;
 
-        // Remove from rover
         for (int i = 0; i < _state.RoverBlocks.Count; i++)
             if (_state.RoverBlocks[i] == fileId) _state.RoverBlocks[i] = "";
 
@@ -180,21 +232,25 @@ public class MemoryRepository
         }
 
         Save();
-        return true;
+        return TransferResult.Ok;
     }
 
-    // Move file from local to SUIRDC uplink (removes from local).
-    public bool SyncToSuirdc(string fileId)
+    // Move file from local to SUIRDC custody (removes from local, irreversible).
+    public TransferResult SyncToSuirdc(string fileId)
     {
-        if (!_state.LocalBlocks.Any(x => x == fileId)) return false;
-        if (_state.SuirdcFiles.Contains(fileId))       return false;
+        var file = GetFile(fileId);
+        if (file == null)                              return TransferResult.SourceMissing;
+        if (_state.SuirdcFiles.Contains(fileId))       return TransferResult.AlreadyStored;
+        if (!_state.LocalBlocks.Any(x => x == fileId)) return TransferResult.SourceMissing;
+        if (GetSuirdcUsed() + file.Blocks > SuirdcCapacity)
+            return TransferResult.InsufficientSpace;
 
         for (int i = 0; i < _state.LocalBlocks.Count; i++)
             if (_state.LocalBlocks[i] == fileId) _state.LocalBlocks[i] = "";
 
         _state.SuirdcFiles.Add(fileId);
         Save();
-        return true;
+        return TransferResult.Ok;
     }
 
     public bool DeleteFromRover(string fileId)
@@ -215,19 +271,24 @@ public class MemoryRepository
         return changed;
     }
 
-    public List<string?> GetDefragTarget(string location)
+    // Target layout for defragmentation: blocks GROUPED per file (in order of
+    // first appearance), then free space. Plain left-compaction is not enough —
+    // it preserves interleavings, so a fragmented file could survive a "defrag".
+    public List<string?> GetDefragTarget(StorageLocation location)
     {
-        var layout   = GetLayout(location);
-        var occupied = layout.Where(x => x != null).ToList();
-        var free     = Enumerable.Repeat<string?>(null, layout.Count - occupied.Count).ToList();
-        return [.. occupied, .. free];
+        var layout = GetLayout(location);
+        var result = new List<string?>(layout.Count);
+        foreach (var id in layout.Where(x => x != null).Distinct())
+            result.AddRange(Enumerable.Repeat(id, layout.Count(x => x == id)));
+        while (result.Count < layout.Count) result.Add(null);
+        return result;
     }
 
-    public void ApplyLayout(string location, List<string?> layout)
+    public void ApplyLayout(StorageLocation location, List<string?> layout)
     {
         var raw = layout.Select(x => x ?? "").ToList();
-        if (location == "rover") _state.RoverBlocks = raw;
-        else                     _state.LocalBlocks  = raw;
+        if (location == StorageLocation.Rover) _state.RoverBlocks = raw;
+        else                                   _state.LocalBlocks = raw;
         Save();
     }
 

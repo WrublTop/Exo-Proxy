@@ -1,4 +1,4 @@
-﻿using ExoProxy.Core;
+using ExoProxy.Core;
 using ExoProxy.Data;
 
 namespace ExoProxy.Presentation.Screens.Boot;
@@ -18,27 +18,25 @@ public sealed class LoginPhase : IBootPhase
     private string _passwordBuffer = "";
     private string _message = "";
     private bool _messageIsError;
-    private bool _blinkVisible = true;
-    private DateTimeOffset _blinkTimer;
-    private const int BlinkMs = 500;
+    private BlinkState _blink;
     private int _selectedIndex = -1;
 
     public bool IsDone { get; private set; }
     public OperatorAccount? LoggedInAccount { get; private set; }
 
+    // True when the operator logged in as DEV — the boot ceremony is skipped
+    // and the base screen unlocks its testing commands.
+    public bool IsDevLogin { get; private set; }
+
     public LoginPhase(OperatorRegistry registry)
     {
-        _registry   = registry;
-        _blinkTimer = DateTimeOffset.UtcNow;
+        _registry = registry;
     }
 
-    public void Update(DateTimeOffset now, InputEvent? input)
+    public void Update(GameTime time, InputEvent? input)
     {
-        if (now - _blinkTimer >= TimeSpan.FromMilliseconds(BlinkMs))
-        {
-            _blinkVisible = !_blinkVisible;
-            _blinkTimer   = now;
-        }
+        var now = time.Total;
+        _blink.Update(now);
 
         if (input is null) return;
 
@@ -221,6 +219,23 @@ public sealed class LoginPhase : IBootPhase
             case InputMode.Login:
                 if (_input.Length == 0) return;
 
+                // DEV is a reserved login for the team — no password, no
+                // registry entry, straight to the base screen. Its save files
+                // (*_DEV.yaml) are separate from real operator data.
+                if (_input.ToUpper() == "DEV")
+                {
+                    LoggedInAccount = new OperatorAccount
+                    {
+                        Login          = "DEV",
+                        PasswordHash   = "",
+                        RegisteredDate = "—",
+                        Status         = OperatorStatus.Active
+                    };
+                    IsDevLogin = true;
+                    IsDone     = true;
+                    return;
+                }
+
                 if (_registry.LoginExists(_input))
                 {
                     var acc = _registry.Accounts.First(a => a.Login == _input.ToUpper());
@@ -375,7 +390,7 @@ public sealed class LoginPhase : IBootPhase
         buffer.WriteAt(promptX, promptY, prompt, ExoColors.ProksPale);
         buffer.WriteAt(promptX + prompt.Length, promptY, displayed, ExoColors.PhosphorText);
 
-        if (_blinkVisible)
+        if (_blink.Visible)
             buffer.WriteAt(promptX + prompt.Length + displayed.Length, promptY, "_", ExoColors.PhosphorDim);
 
         string helpBar = _mode == InputMode.Login

@@ -11,17 +11,17 @@ public sealed class QlinkHandshakePhase : IBootPhase
     private List<StreamEvent> _events = [];
     private readonly List<(string Text, string Color)> _lines = new();
     private int _eventIndex;
-    private DateTimeOffset _nextEventTime;
+    private TimeSpan _nextEventTime;
     private bool _eventsBuilt;
-    private DateTimeOffset _phaseStartTime;
-    private DateTimeOffset _lastNow;
+    private TimeSpan _phaseStartTime;
+    private TimeSpan _lastNow;
 
     private bool _blinkVisible = true;
-    private DateTimeOffset _blinkTimer;
+    private TimeSpan _blinkTimer;
     private const int BlinkMs = 500;
 
     private bool _windingDown;
-    private DateTimeOffset _windDownStart;
+    private TimeSpan _windDownStart;
     private double _totalDurationMs;
 
     // ── Frequency-band equalizer ───────────────────────────────────────────
@@ -41,12 +41,12 @@ public sealed class QlinkHandshakePhase : IBootPhase
     // 0=scan  1=flash-blank  2=flash-full  3=idle-pulse
     private int _eqPhase;
     private float _eqMarkerPos;
-    private DateTimeOffset _eqPhaseTimer;
-    private DateTimeOffset _eqStepTimer;
-    private DateTimeOffset _eqTargetTimer;
-    private DateTimeOffset _eqSpikeTimer;
-    private DateTimeOffset _eqFlashTimer;
-    private DateTimeOffset _eqIdleTargetTimer;
+    private TimeSpan _eqPhaseTimer;
+    private TimeSpan _eqStepTimer;
+    private TimeSpan _eqTargetTimer;
+    private TimeSpan _eqSpikeTimer;
+    private TimeSpan _eqFlashTimer;
+    private TimeSpan _eqIdleTargetTimer;
     private readonly Random _eqRng = new();
 
     private static readonly string _eqAxisString = BuildEqAxisString();
@@ -56,8 +56,7 @@ public sealed class QlinkHandshakePhase : IBootPhase
     public QlinkHandshakePhase(LoginPhase loginPhase)
     {
         _loginPhase = loginPhase;
-        _blinkTimer = DateTimeOffset.UtcNow;
-        _lastNow    = DateTimeOffset.UtcNow;
+        // Timers anchor on the first Update tick (see _eventsBuilt block).
     }
 
     private static string TxArrow(string prefix, int dashes, string suffix)
@@ -93,7 +92,7 @@ public sealed class QlinkHandshakePhase : IBootPhase
         return new string(a);
     }
 
-    private void InitEq(DateTimeOffset now)
+    private void InitEq(TimeSpan now)
     {
         for (int i = 0; i < EqCols; i++)
         {
@@ -121,7 +120,7 @@ public sealed class QlinkHandshakePhase : IBootPhase
         _ => 2,
     };
 
-    private void UpdateEq(DateTimeOffset now)
+    private void UpdateEq(TimeSpan now)
     {
         if (_eqStartIndex < 0) return;
 
@@ -393,8 +392,9 @@ public sealed class QlinkHandshakePhase : IBootPhase
         ];
     }
 
-    public void Update(DateTimeOffset now, InputEvent? input)
+    public void Update(GameTime time, InputEvent? input)
     {
+        var now = time.Total;
         if (IsDone) return;
         _lastNow = now;
 
@@ -423,6 +423,7 @@ public sealed class QlinkHandshakePhase : IBootPhase
             _eventsBuilt      = true;
             _nextEventTime    = now;
             _phaseStartTime   = now;
+            _blinkTimer       = now;
             _totalDurationMs  = _events.Sum(e => (double)e.DelayMs) + 1500.0;
         }
 
@@ -520,7 +521,7 @@ public sealed class QlinkHandshakePhase : IBootPhase
         if (longWait && _lastNow < _nextEventTime)
         {
             const string sp = "|/-\\";
-            int frame = (int)(_lastNow.ToUnixTimeMilliseconds() / 120) % sp.Length;
+            int frame = (int)((long)_lastNow.TotalMilliseconds / 120) % sp.Length;
             for (int i = startLine + count - 1; i >= startLine; i--)
             {
                 var (lt, lc) = _lines[i];

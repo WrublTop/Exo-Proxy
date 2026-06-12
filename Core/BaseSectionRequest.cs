@@ -4,5 +4,7 @@ public enum BaseSectionRequest
 {
     Stay,
     GoToSection,
-    GoToHub
+    GoToHub,
+    Logout,     // end operator session → back to boot/login
+    ExitGame    // shut the terminal down entirely
 }

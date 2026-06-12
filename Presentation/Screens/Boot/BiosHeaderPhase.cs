@@ -67,15 +67,16 @@ public sealed class BiosHeaderPhase : IBootPhase
     private readonly Random _rng;
     private int _detectIndex;
     private bool _detectResultShown;
-    private DateTimeOffset _detectLineStart;
+    private TimeSpan? _anchor;          // set on first Update tick
+    private TimeSpan _detectLineStart;
     private int _detectDelay;
     private bool _flickerVisible;
     private int _flickerStep;
     private bool _endFlickerDone;
-    private DateTimeOffset _flickerTimer;
+    private TimeSpan _flickerTimer;
     private bool _blinkVisible;
     private int _blinkInterval;
-    private DateTimeOffset _blinkTimer;
+    private TimeSpan _blinkTimer;
 
     public bool IsDone { get; private set; }
 
@@ -84,19 +85,28 @@ public sealed class BiosHeaderPhase : IBootPhase
         _rng              = new Random();
         _detectIndex      = 0;
         _detectResultShown = false;
-        _detectLineStart  = DateTimeOffset.UtcNow;
         _detectDelay      = _rng.Next(_detectLines[0].MinMs, _detectLines[0].MaxMs);
         _blinkVisible     = true;
-        _blinkTimer       = DateTimeOffset.UtcNow;
         _blinkInterval    = 167;
         _flickerVisible   = false;
         _flickerStep      = 0;
         _endFlickerDone   = false;
-        _flickerTimer     = DateTimeOffset.UtcNow;
     }
 
-    public void Update(DateTimeOffset now, InputEvent? input)
+    public void Update(GameTime time, InputEvent? input)
     {
+        var now = time.Total;
+
+        // Anchor all timers on the first tick this phase actually runs —
+        // anchoring in the constructor would start the clocks during CRT warmup.
+        if (_anchor is null)
+        {
+            _anchor          = now;
+            _detectLineStart = now;
+            _blinkTimer      = now;
+            _flickerTimer    = now;
+        }
+
         if (input?.Key.Key == ConsoleKey.F4)
         {
             IsDone = true;
@@ -155,15 +165,13 @@ public sealed class BiosHeaderPhase : IBootPhase
         for (int i = 0; i < _biosLines.Length; i++)
             buffer.WriteAt(1, 1 + i, _biosLines[i], ExoColors.ProksText);
 
-        // Uncomment the block below to show the SUIRDC logo in the top-right corner during BIOS header.
-        /*
-        if (_flickerVisible)
-        {
-            int logoX = buffer.Width - 40;
-            for (int i = 0; i < _logoLines.Length; i++)
-                buffer.WriteAt(logoX, 4 + i, _logoLines[i], ExoColors.ProksDark);
-        }
-        */
+        // Disabled: SUIRDC logo in the top-right corner during the BIOS header.
+        // if (_flickerVisible)
+        // {
+        //     int logoX = buffer.Width - 40;
+        //     for (int i = 0; i < _logoLines.Length; i++)
+        //         buffer.WriteAt(logoX, 4 + i, _logoLines[i], ExoColors.ProksDark);
+        // }
 
         buffer.WriteAt(1, DetectStartRow - 1, _detectHeader, ExoColors.ProksText);
 
@@ -219,14 +227,14 @@ public sealed class BiosHeaderPhase : IBootPhase
         _ => ExoColors.ProksText,
     };
 
-    private void StartFlicker(DateTimeOffset now)
+    private void StartFlicker(TimeSpan now)
     {
         _flickerStep    = 0;
         _flickerVisible = _flickerSeq[0].Visible;
         _flickerTimer   = now;
     }
 
-    private void UpdateFlicker(DateTimeOffset now)
+    private void UpdateFlicker(TimeSpan now)
     {
         if (_flickerStep < 0) return;
 

@@ -1,53 +1,74 @@
-using ExoProxy.Core;
+﻿using ExoProxy.Core;
 using ExoProxy.Data;
 
 namespace ExoProxy.Presentation.Screens.Base.Sections;
 
 public sealed class HubSection : IBaseSection
 {
-    public string SectionId => "hub";
+    public string SectionId => SectionIds.Hub;
     public BaseSectionResponse Response { get; private set; } = new(BaseSectionRequest.Stay, null);
 
     private readonly OperatorAccount _account;
-    private readonly GameSettings    _settings;
+    private readonly OperatorProgress _progress;
+    private readonly bool _devMode;
+    private readonly CommsRepository? _commsRepo;
+    private readonly MemoryRepository? _memRepo;
     private string _input = "";
     private string _message = "";
     private bool _messageIsError;
     private bool _helpVisible;
-    private bool _blinkVisible = true;
-    private DateTimeOffset _blinkTimer;
-    private const int BlinkMs = 500;
+    private BlinkState _blink;
 
-    private const int BoxWidth   = 64;
-    private const int BoxInner   = BoxWidth - 2;
+    private const int BoxWidth = 64;
+    private const int BoxInner = BoxWidth - 2;
 
-    private static readonly (string Cmd, string Desc, bool IsSystem)[] _commands =
+    private static readonly (string Cmd, string Desc, bool IsSystem)[] _baseCommands =
     [
         ("MISSION",    "Begin new mission",                  false),
         ("MEMORY",     "Memory management & save data",      false),
         ("COMMS",      "Correspondence & messages",           false),
-        ("SYNC",       "Sync data / transmit to SUIRDC",     false),
         ("DIAG",       "Rover diagnostics",                  false),
+        ("LOGOUT",     "End session — return to login",      true),
+        ("EXIT",       "Power down terminal",                true),
         ("/HELP",      "Show help panel",                    true),
         ("/SETTINGS",  "System settings",                    true),
     ];
 
-    public HubSection(OperatorAccount account, GameSettings settings)
+    // Visible in /help and autocomplete only when logged in as DEV.
+    private static readonly (string Cmd, string Desc, bool IsSystem)[] _devCommands =
+    [
+        ("SOL",        "DEV: SOL 5 / SOL +1 / SOL -1",       true),
+        ("GOTO",       "DEV: jump to section, GOTO COMMS",   true),
+        ("RELOAD",     "DEV: re-read content YAML from disk", true),
+        ("RESET",      "DEV: wipe DEV saves, back to SOL 1", true),
+    ];
+
+    private readonly (string Cmd, string Desc, bool IsSystem)[] _commands;
+
+    public HubSection(OperatorAccount account, OperatorProgress progress, string? loadWarning = null,
+                      bool devMode = false, CommsRepository? commsRepo = null, MemoryRepository? memRepo = null)
     {
-        _account    = account;
-        _settings   = settings;
-        _blinkTimer = DateTimeOffset.UtcNow;
+        _account   = account;
+        _progress  = progress;
+        _devMode   = devMode;
+        _commsRepo = commsRepo;
+        _memRepo   = memRepo;
+        _commands  = devMode ? [.. _baseCommands, .. _devCommands] : _baseCommands;
+
+        // Save-integrity warnings surface here, in the system's own voice.
+        if (!string.IsNullOrEmpty(loadWarning))
+        {
+            _message        = loadWarning;
+            _messageIsError = true;
+        }
     }
 
-    public void Update(DateTimeOffset now, InputEvent? input)
+    public void Update(GameTime time, InputEvent? input)
     {
-        Response = new(BaseSectionRequest.Stay, null);
+        var now = time.Total;
+        _blink.Update(now);
 
-        if (now - _blinkTimer >= TimeSpan.FromMilliseconds(BlinkMs))
-        {
-            _blinkVisible = !_blinkVisible;
-            _blinkTimer   = now;
-        }
+        Response = new(BaseSectionRequest.Stay, null);
 
         if (input is null) return;
 
@@ -86,6 +107,9 @@ public sealed class HubSection : IBaseSection
         var cmd = _input.Trim();
         _input = "";
 
+        if (_devMode && HandleDevCommand(cmd))
+            return;
+
         if (cmd == "/HELP")
         {
             _helpVisible = !_helpVisible;
@@ -95,20 +119,120 @@ public sealed class HubSection : IBaseSection
 
         if (cmd == "/SETTINGS")
         {
-            Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, "settings");
+            Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, SectionIds.Settings);
             return;
         }
 
-        var gameCommands = new[] { "MISSION", "MEMORY", "COMMS", "SYNC", "DIAG" };
-        if (Array.IndexOf(gameCommands, cmd) >= 0)
+        if (cmd == "LOGOUT")
         {
-            Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, cmd.ToLower());
+            Response = new BaseSectionResponse(BaseSectionRequest.Logout, null);
+            return;
+        }
+
+        if (cmd == "EXIT")
+        {
+            Response = new BaseSectionResponse(BaseSectionRequest.ExitGame, null);
+            return;
+        }
+
+        if (cmd == "MEMORY")
+        {
+            Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, SectionIds.Memory);
+            return;
+        }
+
+        if (cmd == "COMMS")
+        {
+            Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, SectionIds.Comms);
+            return;
+        }
+
+        // These modules are designed but not built yet — fail in-fiction
+        // instead of silently swallowing an advertised command.
+        if (cmd == "MISSION" || cmd == "DIAG")
+        {
+            _message        = "MODULE OFFLINE — AWAITING SUIRDC PROVISIONING";
+            _messageIsError = true;
             return;
         }
 
         _message        = $"Unknown command: {cmd}";
         _messageIsError = true;
         _helpVisible    = false;
+    }
+
+    // Testing commands available only when logged in as DEV. Returns true
+    // when the command was recognized and handled.
+    private bool HandleDevCommand(string cmd)
+    {
+        if (cmd == "SOL" || cmd.StartsWith("SOL "))
+        {
+            string arg = cmd.Length > 3 ? cmd[4..].Trim() : "";
+            int newSol;
+
+            if (arg.StartsWith('+') && int.TryParse(arg[1..], out int inc))
+                newSol = _progress.Sol + inc;
+            else if (arg.StartsWith('-') && int.TryParse(arg[1..], out int dec))
+                newSol = _progress.Sol - dec;
+            else if (int.TryParse(arg, out int abs))
+                newSol = abs;
+            else
+            {
+                _message        = "Usage: SOL 5  |  SOL +1  |  SOL -1";
+                _messageIsError = true;
+                return true;
+            }
+
+            _progress.Sol = Math.Max(1, newSol);
+            _progress.Save();
+            _message        = $"[DEV] Sol counter set — {_progress.SolDisplay}";
+            _messageIsError = false;
+            return true;
+        }
+
+        if (cmd == "GOTO" || cmd.StartsWith("GOTO "))
+        {
+            string target = cmd.Length > 4 ? cmd[5..].Trim().ToLowerInvariant() : "";
+
+            if (target is SectionIds.Comms or SectionIds.Memory or SectionIds.Settings)
+            {
+                Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, target);
+                return true;
+            }
+
+            _message        = "Usage: GOTO COMMS | MEMORY | SETTINGS";
+            _messageIsError = true;
+            return true;
+        }
+
+        if (cmd == "RELOAD")
+        {
+            // Re-reads shipped content (messages.yaml, memory_files.yaml) so
+            // writers can iterate without restarting the game. Per-operator
+            // state files are re-read too, but those rarely change on disk.
+            _commsRepo?.Load(_account.Login);
+            _memRepo?.Load(_account.Login);
+            _message        = "[DEV] Content files reloaded from disk";
+            _messageIsError = false;
+            return true;
+        }
+
+        if (cmd == "RESET")
+        {
+            string saveDir = Path.Combine(AppContext.BaseDirectory, "SaveData");
+            if (Directory.Exists(saveDir))
+                foreach (var file in Directory.GetFiles(saveDir, "*_DEV.yaml"))
+                    File.Delete(file);
+
+            _progress.Sol = 1;
+            _commsRepo?.Load(_account.Login);
+            _memRepo?.Load(_account.Login);
+            _message        = "[DEV] DEV save data wiped — back to SOL 001";
+            _messageIsError = false;
+            return true;
+        }
+
+        return false;
     }
 
     private (string Cmd, string Desc, bool IsSystem)[] GetSuggestions()
@@ -121,7 +245,7 @@ public sealed class HubSection : IBaseSection
 
     public void Render(IRenderBuffer buffer)
     {
-        int left    = (buffer.Width - BoxWidth) / 2;
+        int left = (buffer.Width - BoxWidth) / 2;
         int centerY = buffer.Height / 2 - 1;
 
         // ── autocomplete suggestions (above box) ──────────────────────────────
@@ -142,10 +266,10 @@ public sealed class HubSection : IBaseSection
         buffer.WriteAt(left, centerY, "┌" + new string('─', BoxInner) + "┐", ExoColors.ProksBorder);
 
         string inputDisplay = "> " + _input;
-        string paddedInput  = inputDisplay.PadRight(BoxInner);
+        string paddedInput = inputDisplay.PadRight(BoxInner);
         buffer.WriteAt(left, centerY + 1, "│", ExoColors.ProksBorder);
         buffer.WriteAt(left + 1, centerY + 1, paddedInput, ExoColors.PhosphorText);
-        if (_blinkVisible)
+        if (_blink.Visible)
             buffer.WriteAt(left + 1 + inputDisplay.Length, centerY + 1, "_", ExoColors.PhosphorDim);
         buffer.WriteAt(left + BoxWidth - 1, centerY + 1, "│", ExoColors.ProksBorder);
 
@@ -173,8 +297,8 @@ public sealed class HubSection : IBaseSection
             int row = panelTop + 1;
             foreach (var (cmd, desc, isSystem) in _commands)
             {
-                string cmdColor  = isSystem ? ExoColors.ProksPale : ExoColors.PhosphorText;
-                string line      = $"  {cmd.PadRight(12)}{desc}";
+                string cmdColor = isSystem ? ExoColors.ProksPale : ExoColors.PhosphorText;
+                string line = $"  {cmd.PadRight(12)}{desc}";
                 buffer.WriteAt(left, row, "│", ExoColors.ProksBorder);
                 buffer.WriteAt(left + 1, row, line.PadRight(BoxInner), cmdColor);
                 buffer.WriteAt(left + BoxWidth - 1, row, "│", ExoColors.ProksBorder);
@@ -187,7 +311,7 @@ public sealed class HubSection : IBaseSection
         // ── status bar ────────────────────────────────────────────────────────
         int statusY = buffer.Height - 2;
         buffer.WriteAt(left, statusY, $"OPERATOR: {_account.Login}", ExoColors.ProksPale);
-        string sol = _settings.SolDisplay;
+        string sol = _progress.SolDisplay;
         buffer.WriteAt(left + BoxWidth - sol.Length, statusY, sol, ExoColors.SignalText);
     }
 }

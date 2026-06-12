@@ -3,133 +3,99 @@ using ExoProxy.Data;
 
 namespace ExoProxy.Presentation.Screens.Base.Sections;
 
+// Tape-based file management across three storage locations:
+//   ROVER SR-74 (32 KB)  →  LOCAL STATION (32 KB)  →  SUIRDC UPLINK (16 KB, read-only)
+// Files MOVE between locations (never copy). SUIRDC sync is irreversible.
+// Layout at 120×30: tapes (rows 2-11), file list (13-17), reader/modal area (19-26).
 public sealed class MemorySection : IBaseSection
 {
-    public string SectionId => "memory";
+    public string SectionId => SectionIds.Memory;
     public BaseSectionResponse Response { get; private set; } = new(BaseSectionRequest.Stay, null);
 
-    private enum MemState { TapeSelect, FileList, FileRead, SendSelect, SendConfirm, DeleteConfirm, Transferring, Defragging }
+    private enum MemState { TapeSelect, FileList, FileRead, SendConfirm, DeleteConfirm, Transferring, Defragging }
     private MemState _state = MemState.TapeSelect;
 
     private readonly MemoryRepository _repo;
     private readonly OperatorAccount  _account;
-    private readonly GameSettings     _settings;
+    private readonly OperatorProgress _progress;
 
     // ── tape panel ────────────────────────────────────────────────────────────
     private int _tapeIdx = 0;
-    private static readonly string[] _locs     = ["rover", "local", "suirdc"];
+    private static readonly StorageLocation[] _locs =
+        [StorageLocation.Rover, StorageLocation.Local, StorageLocation.Suirdc];
     private static readonly string[] _locNames = ["ROVER SR-74", "LOCAL STATION", "SUIRDC UPLINK"];
 
     // ── file list ─────────────────────────────────────────────────────────────
     private List<MemoryFile> _listFiles  = [];
     private int              _listIdx    = 0;
     private int              _listScroll = 0;
-    private const int ListVisible     = 3;
-    // Rover(3) + arrow(1) + Local(3) + arrow(1) + SUIRDC(2) — no uniform stride for SUIRDC
+    private const int ListVisible     = 4;
     private const int TapeSectionRows = 10;
 
     // ── file reader ───────────────────────────────────────────────────────────
     private List<string> _readerLines  = [];
     private int          _readerScroll = 0;
 
-    // ── send panel ────────────────────────────────────────────────────────────
-    private int      _sendIdx     = 0;
-    private string[] _sendOptions = [];
-    private string[] _sendTargets = [];
+    // ── send confirm ──────────────────────────────────────────────────────────
+    private StorageLocation _sendDst = StorageLocation.Local;
 
     // ── delete confirm ────────────────────────────────────────────────────────
     private MemoryFile? _deleteTarget = null;
 
     // ── transfer animation ────────────────────────────────────────────────────
-    private string         _transferDst      = "";
-    private string         _transferFileId   = "";
-    private float          _transferProgress = 0f;
-    private DateTimeOffset _transferStart;
-    private const int      TransferMs        = 1800;
+    private StorageLocation _transferDst      = StorageLocation.Local;
+    private string          _transferFileId   = "";
+    private float           _transferProgress = 0f;
+    private TimeSpan        _transferStart;
+    private int             _transferMs       = 1800;
 
-    // ── defrag animation ──────────────────────────────────────────────────────
-    private string         _defragLoc    = "rover";
-    private List<string?>  _defragCur    = [];
-    private List<string?>  _defragTarget = [];
-    private DateTimeOffset _defragTimer;
+    // ── defrag ────────────────────────────────────────────────────────────────
+    private StorageLocation _defragLoc    = StorageLocation.Rover;
+    private List<string?>   _defragCur    = [];
+    private List<string?>   _defragTarget = [];
+    private TimeSpan        _defragTimer;
+    private int             _defragMoves;
+    private int             _defragTotal;
+    private MemState        _defragReturn = MemState.TapeSelect;
     private const int DefragStepMs = 70;
 
     // ── status message ────────────────────────────────────────────────────────
-    private string?        _statusMsg   = null;
-    private bool           _statusError = false;
-    private DateTimeOffset _statusTime;
+    private string?  _statusMsg   = null;
+    private bool     _statusError = false;
+    private TimeSpan _statusTime;
     private const int StatusMs = 2500;
 
-    // ── blink ─────────────────────────────────────────────────────────────────
-    private bool           _blinkOn  = true;
-    private DateTimeOffset _blinkTimer;
-    private const int BlinkMs = 500;
+    // ── blink / clock ─────────────────────────────────────────────────────────
+    private BlinkState _blink;
+    private TimeSpan   _now;         // last Update tick — input handlers read this
 
     // ── layout constants ──────────────────────────────────────────────────────
     private const int BarWidth = 14;
     private const int LW       = 4;
 
-    public MemorySection(OperatorAccount account, MemoryRepository repo, GameSettings settings)
+    public MemorySection(OperatorAccount account, MemoryRepository repo, OperatorProgress progress)
     {
-        _account    = account;
-        _repo       = repo;
-        _settings   = settings;
-        _blinkTimer = DateTimeOffset.UtcNow;
+        _account  = account;
+        _repo     = repo;
+        _progress = progress;
         RefreshFileList();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Update
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Update ────────────────────────────────────────────────────────────────
 
-    public void Update(DateTimeOffset now, InputEvent? input)
+    public void Update(GameTime time, InputEvent? input)
     {
-        Response = new(BaseSectionRequest.Stay, null);
+        var now = time.Total;
+        _now = now;
+        _blink.Update(now);
 
-        if (now - _blinkTimer >= TimeSpan.FromMilliseconds(BlinkMs))
-        {
-            _blinkOn    = !_blinkOn;
-            _blinkTimer = now;
-        }
+        Response = new(BaseSectionRequest.Stay, null);
 
         if (_statusMsg != null && (now - _statusTime).TotalMilliseconds >= StatusMs)
             _statusMsg = null;
 
-        if (_state == MemState.Defragging)
-        {
-            if (now - _defragTimer >= TimeSpan.FromMilliseconds(DefragStepMs))
-            {
-                _defragTimer = now;
-                if (!DefragStep())
-                {
-                    _repo.ApplyLayout(_defragLoc, _defragCur);
-                    _state = MemState.TapeSelect;
-                    RefreshFileList();
-                    ShowStatus("DEFRAGMENTATION COMPLETE", false);
-                }
-            }
-            return;
-        }
-
-        if (_state == MemState.Transferring)
-        {
-            float elapsed = (float)(now - _transferStart).TotalMilliseconds;
-            _transferProgress = Math.Min(1f, elapsed / TransferMs);
-            if (_transferProgress >= 1f)
-            {
-                bool ok = _transferDst == "local"  ? _repo.MoveToLocal(_transferFileId)  :
-                          _transferDst == "suirdc" ? _repo.SyncToSuirdc(_transferFileId) : false;
-
-                string dstName = _transferDst == "local" ? "LOCAL STATION" : "SUIRDC UPLINK";
-                ShowStatus(ok
-                    ? $"TRANSFER COMPLETE — STORED IN {dstName}"
-                    : "TRANSFER FAILED — NO SPACE OR ALREADY EXISTS", !ok);
-
-                _state = MemState.FileList;
-                RefreshFileList();
-            }
-            return;
-        }
+        if (_state == MemState.Defragging)   { TickDefrag(now);   return; }
+        if (_state == MemState.Transferring) { TickTransfer(now); return; }
 
         if (input is null) return;
         var key = input.Value.Key;
@@ -139,10 +105,45 @@ public sealed class MemorySection : IBaseSection
             case MemState.TapeSelect:    HandleTapeKey(key);          break;
             case MemState.FileList:      HandleListKey(key);          break;
             case MemState.FileRead:      HandleReadKey(key);          break;
-            case MemState.SendSelect:    HandleSendKey(key);          break;
             case MemState.SendConfirm:   HandleSendConfirmKey(key);   break;
             case MemState.DeleteConfirm: HandleDeleteConfirmKey(key); break;
         }
+    }
+
+    private void TickDefrag(TimeSpan now)
+    {
+        if (now - _defragTimer < TimeSpan.FromMilliseconds(DefragStepMs)) return;
+        _defragTimer = now;
+
+        if (DefragStep()) { _defragMoves++; return; }
+
+        _repo.ApplyLayout(_defragLoc, _defragCur);
+        _state = _defragReturn;
+        RefreshFileList();
+        ShowStatus($"DEFRAGMENTATION COMPLETE — {_defragMoves} BLOCKS RELOCATED", false);
+    }
+
+    private void TickTransfer(TimeSpan now)
+    {
+        float elapsed = (float)(now - _transferStart).TotalMilliseconds;
+        _transferProgress = Math.Min(1f, elapsed / _transferMs);
+        if (_transferProgress < 1f) return;
+
+        var result = _transferDst == StorageLocation.Local
+            ? _repo.MoveToLocal(_transferFileId)
+            : _repo.SyncToSuirdc(_transferFileId);
+
+        string dstName = _locNames[(int)_transferDst];
+        var (msg, isError) = result switch
+        {
+            TransferResult.Ok                => ($"TRANSFER COMPLETE — STORED IN {dstName}", false),
+            TransferResult.InsufficientSpace => ("TRANSFER REJECTED — INSUFFICIENT BLOCKS AT DESTINATION", true),
+            TransferResult.AlreadyStored     => ("TRANSFER REJECTED — DUPLICATE RECORD AT DESTINATION", true),
+            _                                => ("TRANSFER REJECTED — SOURCE RECORD MISSING", true),
+        };
+        ShowStatus(msg, isError);
+        _state = MemState.FileList;
+        RefreshFileList();
     }
 
     private void HandleTapeKey(ConsoleKeyInfo key)
@@ -152,13 +153,18 @@ public sealed class MemorySection : IBaseSection
         if (key.Key == ConsoleKey.DownArrow) { _tapeIdx = Math.Min(2, _tapeIdx + 1); RefreshFileList(); return; }
         if (key.Key == ConsoleKey.Enter)
         {
-            if (_listFiles.Count == 0) { ShowStatus("NO FILES IN THIS LOCATION", false); return; }
+            if (_listFiles.Count == 0)
+            {
+                ShowStatus(_locs[_tapeIdx] == StorageLocation.Suirdc
+                    ? "ARCHIVE EMPTY" : "NO RECORDS ON TAPE", false);
+                return;
+            }
             _listIdx = 0;
             _state   = MemState.FileList;
             return;
         }
         if ((key.KeyChar == 'f' || key.KeyChar == 'F') && _tapeIdx < 2)
-            StartDefrag();
+            StartDefrag(MemState.TapeSelect);
     }
 
     private void HandleListKey(ConsoleKeyInfo key)
@@ -176,18 +182,18 @@ public sealed class MemorySection : IBaseSection
         }
         if ((key.KeyChar == 's' || key.KeyChar == 'S') && _listFiles.Count > 0)
         {
-            OpenSendPanel();
+            OpenSendConfirm();
             return;
         }
         if ((key.KeyChar == 'd' || key.KeyChar == 'D') && _listFiles.Count > 0)
         {
-            if (_locs[_tapeIdx] == "suirdc") { ShowStatus("SUIRDC FILES ARE READ-ONLY", true); return; }
+            if (_locs[_tapeIdx] == StorageLocation.Suirdc) { ShowStatus("SUIRDC RECORDS ARE READ-ONLY", true); return; }
             _deleteTarget = _listFiles[_listIdx];
             _state        = MemState.DeleteConfirm;
             return;
         }
         if ((key.KeyChar == 'f' || key.KeyChar == 'F') && _tapeIdx < 2)
-            StartDefrag();
+            StartDefrag(MemState.FileList);
     }
 
     private void HandleReadKey(ConsoleKeyInfo key)
@@ -197,41 +203,49 @@ public sealed class MemorySection : IBaseSection
         if (key.Key == ConsoleKey.DownArrow) { _readerScroll++; return; }
     }
 
-    private void HandleSendKey(ConsoleKeyInfo key)
-    {
-        if (key.Key == ConsoleKey.Escape)                                           { _state = MemState.FileList; return; }
-        if (key.Key == ConsoleKey.UpArrow   && _sendIdx > 0)                       { _sendIdx--; return; }
-        if (key.Key == ConsoleKey.DownArrow && _sendIdx < _sendOptions.Length - 1) { _sendIdx++; return; }
-        if (key.Key == ConsoleKey.Enter)                                            { _state = MemState.SendConfirm; }
-    }
-
     private void HandleSendConfirmKey(ConsoleKeyInfo key)
     {
-        // ESC/N both return to FileList (not SendSelect) for consistent cancel flow
-        if (key.Key == ConsoleKey.Escape || key.KeyChar == 'n' || key.KeyChar == 'N')
+        if (key.Key == ConsoleKey.Escape || key.KeyChar is 'n' or 'N')
         {
             _state = MemState.FileList;
             return;
         }
-        if (key.KeyChar == 'y' || key.KeyChar == 'Y')
-            ConfirmSend();
+        if (key.KeyChar is 'y' or 'Y')
+        {
+            if (_listFiles.Count == 0 || _listIdx >= _listFiles.Count) { _state = MemState.FileList; return; }
+            var file = _listFiles[_listIdx];
+
+            if (!SendFits(file))
+            {
+                ShowStatus("TRANSFER REJECTED — INSUFFICIENT BLOCKS AT DESTINATION", true);
+                _state = MemState.FileList;
+                return;
+            }
+
+            _transferFileId   = file.Id;
+            _transferDst      = _sendDst;
+            _transferProgress = 0f;
+            _transferMs       = Math.Clamp(600 + file.Blocks * 300, 1200, 4000);
+            _transferStart    = _now;
+            _state            = MemState.Transferring;
+        }
     }
 
     private void HandleDeleteConfirmKey(ConsoleKeyInfo key)
     {
-        if (key.Key == ConsoleKey.Escape || key.KeyChar == 'n' || key.KeyChar == 'N')
+        if (key.Key == ConsoleKey.Escape || key.KeyChar is 'n' or 'N')
         {
             _deleteTarget = null;
             _state        = MemState.FileList;
             return;
         }
-        if (key.KeyChar == 'y' || key.KeyChar == 'Y')
+        if (key.KeyChar is 'y' or 'Y')
         {
             if (_deleteTarget != null)
             {
-                string loc = _locs[_tapeIdx];
-                bool ok = loc == "rover" ? _repo.DeleteFromRover(_deleteTarget.Id)
-                                         : _repo.DeleteFromLocal(_deleteTarget.Id);
+                var loc = _locs[_tapeIdx];
+                bool ok = loc == StorageLocation.Rover ? _repo.DeleteFromRover(_deleteTarget.Id)
+                                                       : _repo.DeleteFromLocal(_deleteTarget.Id);
                 if (ok)
                 {
                     ShowStatus($"{_deleteTarget.DisplayName} — DELETED", false);
@@ -244,14 +258,12 @@ public sealed class MemorySection : IBaseSection
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Actions
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Actions ───────────────────────────────────────────────────────────────
 
     private void RefreshFileList()
     {
-        string loc  = _locs[_tapeIdx];
-        _listFiles  = loc == "suirdc" ? _repo.GetSuirdcFiles() : _repo.GetFilesAt(loc);
+        var loc     = _locs[_tapeIdx];
+        _listFiles  = loc == StorageLocation.Suirdc ? _repo.GetSuirdcFiles() : _repo.GetFilesAt(loc);
         _listIdx    = Math.Clamp(_listIdx, 0, Math.Max(0, _listFiles.Count - 1));
         _listScroll = 0;
     }
@@ -265,21 +277,47 @@ public sealed class MemorySection : IBaseSection
             .ToList();
     }
 
-    private void StartDefrag()
+    private void OpenSendConfirm()
     {
-        string loc    = _locs[_tapeIdx];
-        var    layout = _repo.GetLayout(loc);
-        var    target = _repo.GetDefragTarget(loc);
+        var loc = _locs[_tapeIdx];
+        if (loc == StorageLocation.Suirdc) { ShowStatus("SUIRDC RECORDS ARE READ-ONLY", true); return; }
+
+        _sendDst = loc == StorageLocation.Rover ? StorageLocation.Local : StorageLocation.Suirdc;
+        _state   = MemState.SendConfirm;
+    }
+
+    private bool SendFits(MemoryFile file)
+    {
+        if (_sendDst == StorageLocation.Suirdc)
+            return _repo.GetSuirdcUsed() + file.Blocks <= MemoryRepository.SuirdcCapacity;
+        return _repo.GetLayout(_sendDst).Count(b => b == null) >= file.Blocks;
+    }
+
+    private int SendFreeBlocks() =>
+        _sendDst == StorageLocation.Suirdc
+            ? MemoryRepository.SuirdcCapacity - _repo.GetSuirdcUsed()
+            : _repo.GetLayout(_sendDst).Count(b => b == null);
+
+    private void StartDefrag(MemState returnTo)
+    {
+        var loc    = _locs[_tapeIdx];
+        var layout = _repo.GetLayout(loc);
+        var target = _repo.GetDefragTarget(loc);
 
         if (layout.SequenceEqual(target)) { ShowStatus("STORAGE ALREADY COMPACTED", false); return; }
 
         _defragLoc    = loc;
         _defragCur    = new List<string?>(layout);
         _defragTarget = target;
-        _defragTimer  = DateTimeOffset.UtcNow;
+        _defragTimer  = _now;
+        _defragMoves  = 0;
+        _defragTotal  = CountMismatches(_defragCur, _defragTarget);
+        _defragReturn = returnTo;
         _state        = MemState.Defragging;
     }
 
+    // One visible swap per tick. Converges because every swap fixes at least
+    // the first mismatched position against the target layout.
     private bool DefragStep()
     {
         for (int i = 0; i < _defragCur.Count; i++)
@@ -299,39 +337,22 @@ public sealed class MemorySection : IBaseSection
         return false;
     }
 
-    private void OpenSendPanel()
+    private static int CountMismatches(List<string?> a, List<string?> b)
     {
-        string loc = _locs[_tapeIdx];
-        if (loc == "suirdc") { ShowStatus("SUIRDC FILES ARE READ-ONLY", true); return; }
-
-        _sendOptions = loc == "rover"
-            ? ["MOVE TO LOCAL STATION"]
-            : ["SYNC TO SUIRDC UPLINK"];
-        _sendTargets = loc == "rover" ? ["local"] : ["suirdc"];
-        _sendIdx     = 0;
-        _state       = MemState.SendSelect;
-    }
-
-    private void ConfirmSend()
-    {
-        if (_listFiles.Count == 0) return;
-        _transferFileId   = _listFiles[_listIdx].Id;
-        _transferDst      = _sendTargets[_sendIdx];
-        _transferProgress = 0f;
-        _transferStart    = DateTimeOffset.UtcNow;
-        _state            = MemState.Transferring;
+        int n = 0;
+        for (int i = 0; i < a.Count; i++)
+            if (a[i] != b[i]) n++;
+        return n;
     }
 
     private void ShowStatus(string msg, bool error)
     {
         _statusMsg   = msg;
         _statusError = error;
-        _statusTime  = DateTimeOffset.UtcNow;
+        _statusTime  = _now;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Render ────────────────────────────────────────────────────────────────
 
     public void Render(IRenderBuffer buffer)
     {
@@ -347,10 +368,12 @@ public sealed class MemorySection : IBaseSection
         int tapeSepRow  = tapeStart + TapeSectionRows;
         int listHdrRow  = tapeSepRow + 1;
         int listStart   = tapeSepRow + 2;
-        int listSepRow  = listStart + ListVisible;   // no separate status row
+        int listSepRow  = listStart + ListVisible;
         int readerStart = listSepRow + 1;
 
-        WriteBorder(buffer, 0, panelTop, w, " MEMORY ALLOCATION SYSTEM ", $" {_settings.SolDisplay} ");
+        Ui.WriteDualTitleBorder(buffer, 0, panelTop, w,
+            " MEMORY ALLOCATION SYSTEM ", $" {_progress.SolDisplay} ",
+            ExoColors.ProksText, ExoColors.SignalText, ExoColors.ProksBorder);
         buffer.WriteAt(0, panelBottom, "└" + new string('─', innerW) + "┘", ExoColors.ProksBorder);
         for (int r = panelTop + 1; r < panelBottom; r++)
         {
@@ -361,10 +384,12 @@ public sealed class MemorySection : IBaseSection
         buffer.WriteAt(0, tapeSepRow, "├" + new string('─', innerW) + "┤", ExoColors.ProksBorder);
         buffer.WriteAt(0, listSepRow, "├" + new string('─', innerW) + "┤", ExoColors.ProksBorder);
 
-        var displayLayouts = new Dictionary<string, List<string?>>
+        var displayLayouts = new Dictionary<StorageLocation, List<string?>>
         {
-            ["rover"] = _state == MemState.Defragging && _defragLoc == "rover" ? _defragCur : _repo.GetLayout("rover"),
-            ["local"] = _state == MemState.Defragging && _defragLoc == "local" ? _defragCur : _repo.GetLayout("local"),
+            [StorageLocation.Rover] = _state == MemState.Defragging && _defragLoc == StorageLocation.Rover
+                ? _defragCur : _repo.GetLayout(StorageLocation.Rover),
+            [StorageLocation.Local] = _state == MemState.Defragging && _defragLoc == StorageLocation.Local
+                ? _defragCur : _repo.GetLayout(StorageLocation.Local),
         };
 
         RenderTapeSection(buffer, tapeStart, innerW, displayLayouts);
@@ -378,9 +403,9 @@ public sealed class MemorySection : IBaseSection
             RenderSendConfirmPanel(buffer, readerStart, panelBottom - 1, innerW);
         else if (_state == MemState.Transferring)
             RenderTransferPanel(buffer, readerStart, panelBottom - 1, innerW);
-        else if (_state == MemState.SendSelect)
-            RenderSendPanel(buffer, readerStart, panelBottom - 1, innerW);
-        else if (_state is MemState.FileRead or MemState.Defragging)
+        else if (_state == MemState.Defragging)
+            RenderDefragPanel(buffer, readerStart, panelBottom - 1, innerW);
+        else if (_state == MemState.FileRead)
             RenderFileReader(buffer, readerStart, panelBottom - 1, innerW);
         else
             RenderFileListHint(buffer, readerStart, panelBottom - 1, innerW);
@@ -391,50 +416,55 @@ public sealed class MemorySection : IBaseSection
     // ── tape section ──────────────────────────────────────────────────────────
 
     private void RenderTapeSection(IRenderBuffer buffer, int startRow, int innerW,
-        Dictionary<string, List<string?>> layouts)
+        Dictionary<StorageLocation, List<string?>> layouts)
     {
         int x   = 2;
         int row = startRow;
 
         for (int i = 0; i < 3; i++)
         {
-            string loc  = _locs[i];
+            var    loc  = _locs[i];
             string name = _locNames[i];
             bool   sel  = _tapeIdx == i;
 
             int hRow = row;
             int tRow = row + 1;
 
-            // Marker blinks PhosphorText / PhosphorDim — same as CommsSection and SettingsSection
-            string marker    = sel ? (_blinkOn ? "►" : "▷") : " ";
+            string marker    = sel ? (_blink.Visible ? "►" : "▷") : " ";
             string markerCol = sel
-                ? (_blinkOn ? ExoColors.PhosphorText : ExoColors.PhosphorDim)
+                ? (_blink.Visible ? ExoColors.PhosphorText : ExoColors.PhosphorDim)
                 : ExoColors.ProksBorder;
             string nameCol = sel ? ExoColors.PhosphorText : ExoColors.ProksText;
 
             buffer.WriteAt(x, hRow, marker, markerCol);
 
-            var files = loc == "suirdc" ? _repo.GetSuirdcFiles() : _repo.GetFilesAt(loc);
+            var files = loc == StorageLocation.Suirdc ? _repo.GetSuirdcFiles() : _repo.GetFilesAt(loc);
 
-            if (loc == "suirdc")
+            if (loc == StorageLocation.Suirdc)
             {
+                int used = _repo.GetSuirdcUsed();
+                int cap  = MemoryRepository.SuirdcCapacity;
+
                 int cx = x + 2;
                 buffer.WriteAt(cx, hRow, name, nameCol);
-                cx += name.Length;
+                cx += name.Length + 2;
+
+                string bar = BuildUsageBar(used, cap);
+                buffer.WriteAt(cx, hRow, bar, ExoColors.ProksText);
+                cx += bar.Length;
 
                 var suirdcIds = files.Select(f => f.Id).ToHashSet();
-                int queue     = _repo.GetFilesAt("local").Count(f => !suirdcIds.Contains(f.Id));
+                int queue     = _repo.GetFilesAt(StorageLocation.Local).Count(f => !suirdcIds.Contains(f.Id));
 
-                string meta = $"   BW: 32 KB/SOL   QUEUE: {queue}   FILES: {files.Count}";
-                buffer.WriteAt(cx, hRow, meta, ExoColors.ProksPale);
-                cx += meta.Length;
+                string stats = $"   {used}/{cap} KB   QUEUE: {queue}";
+                buffer.WriteAt(cx, hRow, stats, ExoColors.ProksDark);
+                cx += stats.Length;
 
-                // [READ-ONLY] is a system property, not an error — ProksPale
                 buffer.WriteAt(cx, hRow, "   [READ-ONLY]", ExoColors.ProksPale);
 
                 RenderSuirdcLine(buffer, x + 2, tRow, innerW - x - 3, files);
 
-                row += 2; // header + tags line (no ruler for tag-based SUIRDC)
+                row += 2;
             }
             else
             {
@@ -452,7 +482,7 @@ public sealed class MemorySection : IBaseSection
                 buffer.WriteAt(cx, hRow, bar, ExoColors.ProksText);
                 cx += bar.Length;
 
-                buffer.WriteAt(cx, hRow, stats, ExoColors.ProksPale);
+                buffer.WriteAt(cx, hRow, stats, ExoColors.ProksDark);
                 cx += stats.Length;
 
                 if (frag > 0)
@@ -461,24 +491,23 @@ public sealed class MemorySection : IBaseSection
                 int rulerRow = row + 2;
                 RenderTapeLine(buffer, x + 2, tRow, rulerRow, innerW - x - 3, layout, files);
 
-                row += 3; // header + tape line + ruler
+                row += 3;
             }
 
             if (i < 2)
             {
                 string arrow = i == 0 ? "↓  MOVE TO LOCAL" : "↓  SYNC TO SUIRDC";
-                buffer.WriteAt(innerW / 2 - arrow.Length / 2, row, arrow, ExoColors.ProksPale);
-                row++; // arrow row
+                buffer.WriteAt(innerW / 2 - arrow.Length / 2, row, arrow, ExoColors.ProksDark);
+                row++;
             }
         }
     }
 
-    // Renders SUIRDC files as named tags — all in ProksPale (machine whispers about its archive)
     private void RenderSuirdcLine(IRenderBuffer buffer, int x, int y, int maxW, List<MemoryFile> files)
     {
         if (files.Count == 0)
         {
-            buffer.WriteAt(x, y, "[NO FILES SYNCED]", ExoColors.ProksPale);
+            buffer.WriteAt(x, y, "[ARCHIVE EMPTY]", ExoColors.ProksDark);
             return;
         }
 
@@ -543,7 +572,7 @@ public sealed class MemorySection : IBaseSection
         int curKb = 0;
 
         buffer.WriteAt(curX++, y, "{", ExoColors.ProksBorder);
-        boundaries.Add((x, 0)); // "0" sits under '{'
+        boundaries.Add((x, 0));
 
         foreach (var (id, count) in runs)
         {
@@ -554,13 +583,11 @@ public sealed class MemorySection : IBaseSection
 
             if (id == null)
             {
-                // Free space: 2 dots per block — subtle ProksBorder so empty space is visible but quiet
                 seg = "[" + new string('·', count * 2) + "]";
                 col = ExoColors.ProksBorder;
             }
             else
             {
-                // File segment: 2 chars per block — label fills left, dashes extend right
                 string label    = fileLabels.GetValueOrDefault(id, "????");
                 int    contentW = count * 2;
                 string content  = contentW <= label.Length
@@ -586,7 +613,6 @@ public sealed class MemorySection : IBaseSection
         RenderTapeRuler(buffer, x, rulerRow, maxW, boundaries);
     }
 
-    // Renders KB position markers below the tape line
     private static void RenderTapeRuler(IRenderBuffer buffer, int x, int y, int maxW,
         List<(int xPos, int kb)> boundaries)
     {
@@ -596,11 +622,9 @@ public sealed class MemorySection : IBaseSection
         {
             var (bx, kb) = boundaries[i];
             string label = kb.ToString();
-            int    rx    = bx - x; // position relative to tape start
+            int    rx    = bx - x;
 
             if (rx >= maxW) break;
-
-            // Skip if this label would overlap the previous one
             if (rx < lastLabelEndX + 1) continue;
 
             buffer.WriteAt(x + rx, y, label, ExoColors.ProksDark);
@@ -616,28 +640,27 @@ public sealed class MemorySection : IBaseSection
 
         string tapeName = _locNames[_tapeIdx];
         buffer.WriteAt(x,      hdrRow, $"FILES IN [{tapeName}]", ExoColors.PhosphorText);
-        buffer.WriteAt(x + 25, hdrRow, "TYPE",   ExoColors.ProksBorder);
-        buffer.WriteAt(x + 31, hdrRow, "KB",     ExoColors.ProksBorder);
-        buffer.WriteAt(x + 36, hdrRow, "SOL",    ExoColors.ProksBorder);
-        buffer.WriteAt(x + 44, hdrRow, "STATUS", ExoColors.ProksBorder);
+        buffer.WriteAt(x + 25, hdrRow, "TYPE",   ExoColors.ProksDark);
+        buffer.WriteAt(x + 31, hdrRow, "KB",     ExoColors.ProksDark);
+        buffer.WriteAt(x + 36, hdrRow, "SOL",    ExoColors.ProksDark);
+        buffer.WriteAt(x + 44, hdrRow, "STATUS", ExoColors.ProksDark);
 
-        // Status message shown right-aligned in header row — no dedicated status row needed
         if (_statusMsg != null)
         {
             string statusCol = _statusError ? ExoColors.FaultText : ExoColors.PhosphorText;
-            string truncated = Truncate(_statusMsg, innerW - 55);
+            string truncated = Ui.Truncate(_statusMsg, innerW - 55);
             buffer.WriteAt(innerW - truncated.Length - 1, hdrRow, truncated, statusCol);
         }
 
-        if (_listIdx < _listScroll)               _listScroll = _listIdx;
+        if (_listIdx < _listScroll)                _listScroll = _listIdx;
         if (_listIdx >= _listScroll + ListVisible) _listScroll = _listIdx - ListVisible + 1;
         _listScroll = Math.Max(0, _listScroll);
 
         bool inList = _state is MemState.FileList or MemState.FileRead
-                               or MemState.SendSelect or MemState.SendConfirm or MemState.DeleteConfirm;
+                               or MemState.SendConfirm or MemState.DeleteConfirm;
 
-        string        loc       = _locs[_tapeIdx];
-        List<string?> rowLayout = loc == "suirdc" ? [] : _repo.GetLayout(loc);
+        var           loc       = _locs[_tapeIdx];
+        List<string?> rowLayout = _repo.GetLayout(loc);
 
         for (int i = 0; i < ListVisible; i++)
         {
@@ -648,99 +671,41 @@ public sealed class MemorySection : IBaseSection
         }
 
         if (_listScroll > 0)
-            buffer.WriteAt(innerW - 6, listStart, "▲ more", ExoColors.ProksPale);
+            buffer.WriteAt(innerW - 6, listStart, "▲ more", ExoColors.ProksDark);
         if (_listFiles.Count > _listScroll + ListVisible)
-            buffer.WriteAt(innerW - 6, listStart + ListVisible - 1, "▼ more", ExoColors.ProksPale);
+            buffer.WriteAt(innerW - 6, listStart + ListVisible - 1, "▼ more", ExoColors.ProksDark);
     }
 
     private void RenderFileRow(IRenderBuffer buffer, int x, int y,
         MemoryFile file, bool selected, int innerW, List<string?> layout)
     {
-        string loc    = _locs[_tapeIdx];
-        bool   frag   = loc != "suirdc" && _repo.IsFragmented(file.Id, layout);
-        string status = frag ? "[!] FRAG" : "OK";
+        var  loc  = _locs[_tapeIdx];
+        bool frag = loc != StorageLocation.Suirdc && _repo.IsFragmented(file.Id, layout);
 
-        // Arrow — PhosphorText/PhosphorDim, consistent with CommsSection and SettingsSection
-        string arrow    = selected ? (_blinkOn ? "►" : "▷") : " ";
+        string arrow    = selected ? (_blink.Visible ? "►" : "▷") : " ";
         string arrowCol = selected
-            ? (_blinkOn ? ExoColors.PhosphorText : ExoColors.PhosphorDim)
+            ? (_blink.Visible ? ExoColors.PhosphorText : ExoColors.PhosphorDim)
             : ExoColors.ProksBorder;
 
-        string rowCol = selected ? ExoColors.PhosphorText
-                      : (frag   ? ExoColors.FaultText : ExoColors.ProksText);
+        // Fragmentation is a state, not a failure — only the STATUS cell warns.
+        string rowCol = selected ? ExoColors.PhosphorText : ExoColors.ProksText;
 
-        string name   = Truncate(file.DisplayName, 22).PadRight(22);
+        string name   = Ui.Truncate(file.DisplayName, 22).PadRight(22);
         string type   = file.Type.PadRight(5);
-        string blocks = file.Blocks.ToString();          // left-align under K of KB header
-        string solNum = file.Sol.StartsWith("SOL ") ? file.Sol[4..] : file.Sol;
-        string sol    = solNum.PadLeft(3);
+        string blocks = file.Blocks.ToString();
+        string sol    = file.Sol.StartsWith("SOL ") ? file.Sol[4..] : file.Sol;
 
         buffer.WriteAt(x,      y, arrow,  arrowCol);
         buffer.WriteAt(x + 2,  y, name,   rowCol);
 
-        // Metadata columns — ProksBorder (structural info, not primary data)
-        buffer.WriteAt(x + 25, y, type,   ExoColors.ProksBorder);
-        buffer.WriteAt(x + 31, y, blocks, ExoColors.ProksBorder);
-        buffer.WriteAt(x + 36, y, sol,    ExoColors.ProksBorder);
+        buffer.WriteAt(x + 25, y, type,   ExoColors.ProksDark);
+        buffer.WriteAt(x + 31, y, blocks, ExoColors.ProksDark);
+        buffer.WriteAt(x + 36, y, sol,    ExoColors.ProksDark);
 
-        // Status: FRAG = FaultText (warning), OK = ProksBorder (background info, not important)
-        buffer.WriteAt(x + 44, y, status, frag ? ExoColors.FaultText : ExoColors.ProksBorder);
-    }
-
-    // ── send panel (reader area) ──────────────────────────────────────────────
-
-    private void RenderSendPanel(IRenderBuffer buffer, int startRow, int endRow, int innerW)
-    {
-        if (_listFiles.Count == 0 || _listIdx >= _listFiles.Count) return;
-
-        var    file     = _listFiles[_listIdx];
-        int    fullW    = innerW + 2;
-        int    x        = 2;
-        string destLoc  = _sendTargets.Length > 0 ? _sendTargets[_sendIdx] : "";
-
-        WriteTransmitBorder(buffer, 0, startRow, fullW, "─ SEND FILE ");
-
-        buffer.WriteAt(x, startRow + 1,
-            $"  {file.DisplayName} [{file.Type}]  —  {file.Blocks} KB",
-            ExoColors.PhosphorText);
-        buffer.WriteAt(x, startRow + 2,
-            new string('─', Math.Min(50, innerW - x)), ExoColors.ProksBorder);
-
-        for (int i = 0; i < _sendOptions.Length; i++)
-        {
-            int row = startRow + 3 + i;
-            if (row > endRow) break;
-            bool   sel  = i == _sendIdx;
-            string arr  = sel ? (_blinkOn ? "►" : "▷") : " ";
-            string col  = sel ? ExoColors.PhosphorText : ExoColors.ProksText;
-            string acol = sel ? (_blinkOn ? ExoColors.PhosphorText : ExoColors.PhosphorDim)
-                              : ExoColors.ProksBorder;
-            buffer.WriteAt(x,     row, arr,             acol);
-            buffer.WriteAt(x + 2, row, _sendOptions[i], col);
-        }
-
-        int infoRow = startRow + 3 + _sendOptions.Length + 1;
-
-        // Show destination free space so the player can judge before confirming
-        if (destLoc != "suirdc" && infoRow <= endRow)
-        {
-            var  destLayout = _repo.GetLayout(destLoc);
-            int  destCap    = _repo.GetCapacity(destLoc);
-            int  destFree   = destCap - destLayout.Count(b => b != null);
-            bool fits       = file.Blocks <= destFree;
-
-            string freeInfo = $"  DST FREE: {destFree} KB" + (fits ? "" : "  — INSUFFICIENT SPACE");
-            string freeCol  = fits ? ExoColors.ProksPale : ExoColors.FaultText;
-            buffer.WriteAt(x, infoRow, freeInfo, freeCol);
-            infoRow++;
-        }
-
-        // MOVE warning is shown here so the player sees it before the confirm step
-        if (infoRow + 1 <= endRow)
-        {
-            buffer.WriteAt(x, infoRow,     new string('─', Math.Min(50, innerW - x)), ExoColors.ProksBorder);
-            buffer.WriteAt(x, infoRow + 1, "  NOTE: FILE WILL BE REMOVED FROM SOURCE.", ExoColors.FaultText);
-        }
+        if (frag)
+            buffer.WriteAt(x + 44, y, "[!] FRAG", ExoColors.FaultText);
+        else
+            buffer.WriteAt(x + 44, y, "OK", ExoColors.ProksDark);
     }
 
     // ── send confirm panel ────────────────────────────────────────────────────
@@ -749,24 +714,37 @@ public sealed class MemorySection : IBaseSection
     {
         if (_listFiles.Count == 0 || _listIdx >= _listFiles.Count) return;
 
-        var    file    = _listFiles[_listIdx];
-        int    fullW   = innerW + 2;
-        int    x       = 2;
-        string dstName = _sendTargets.Length > 0
-            ? (_sendTargets[_sendIdx] == "local" ? "LOCAL STATION" : "SUIRDC UPLINK")
-            : "UNKNOWN";
+        var    file      = _listFiles[_listIdx];
+        int    x         = 2;
+        bool   toArchive = _sendDst == StorageLocation.Suirdc;
+        string dstName   = _locNames[(int)_sendDst];
+        bool   fits      = SendFits(file);
+        int    free      = SendFreeBlocks();
 
-        WriteTransmitBorder(buffer, 0, startRow, fullW, "─ CONFIRM TRANSFER ");
+        Ui.WriteTransmitBorder(buffer, 0, startRow, innerW, "─ CONFIRM TRANSFER ");
 
         int row = startRow + 1;
         buffer.WriteAt(x, row++, $"  {file.DisplayName} [{file.Type}]  —  {file.Blocks} KB",
             ExoColors.PhosphorText);
-        buffer.WriteAt(x, row++, new string('─', Math.Min(50, innerW - x)), ExoColors.ProksBorder);
-        buffer.WriteAt(x, row++, $"  DESTINATION: {dstName}",               ExoColors.ProksText);
-        buffer.WriteAt(x, row++, "  FILE WILL BE REMOVED FROM SOURCE.",      ExoColors.FaultText);
-        buffer.WriteAt(x, row++, new string('─', Math.Min(50, innerW - x)), ExoColors.ProksBorder);
-        if (row <= endRow) buffer.WriteAt(x, row++, "  [Y]  CONFIRM TRANSFER", ExoColors.PhosphorBright);
-        if (row <= endRow) buffer.WriteAt(x, row,   "  [N]  CANCEL",           ExoColors.PhosphorText);
+        buffer.WriteAt(x, row++, new string('─', Math.Min(56, innerW - x)), ExoColors.ProksBorder);
+
+        buffer.WriteAt(x, row, $"  DESTINATION: {dstName}", ExoColors.ProksText);
+        string freeInfo = $"DST FREE: {free} KB" + (fits ? "" : "  — INSUFFICIENT");
+        buffer.WriteAt(x + 34, row++, freeInfo, fits ? ExoColors.ProksDark : ExoColors.FaultText);
+
+        string note = toArchive
+            ? "  RECORD WILL BE SURRENDERED TO SUIRDC — NO RETRIEVAL."
+            : "  NOTE: FILE WILL BE REMOVED FROM SOURCE.";
+        buffer.WriteAt(x, row++, note, ExoColors.FaultText);
+        buffer.WriteAt(x, row++, new string('─', Math.Min(56, innerW - x)), ExoColors.ProksBorder);
+
+        if (row <= endRow)
+        {
+            if (fits) buffer.WriteAt(x, row++, "  [Y]  CONFIRM TRANSFER", ExoColors.PhosphorBright);
+            else      buffer.WriteAt(x, row++, "  [Y]  CONFIRM TRANSFER — UNAVAILABLE", ExoColors.ProksDark);
+        }
+        if (row <= endRow)
+            buffer.WriteAt(x, row, "  [N]  CANCEL", ExoColors.PhosphorText);
     }
 
     // ── delete confirm panel ──────────────────────────────────────────────────
@@ -778,9 +756,6 @@ public sealed class MemorySection : IBaseSection
         int sepW    = Math.Min(44, innerW - 4);
         int usableW = innerW - 2;
         int cx(int len) => 2 + Math.Max(0, (usableW - len) / 2);
-
-        for (int r = startRow; r <= endRow; r++)
-            buffer.WriteAt(2, r, new string(' ', innerW - 2), ExoColors.ProksDark);
 
         string loc      = _locNames[_tapeIdx];
         string title    = $"DELETE FROM [{loc}]";
@@ -806,78 +781,81 @@ public sealed class MemorySection : IBaseSection
     {
         if (endRow - startRow < 3) return;
 
-        int    fullW   = innerW + 2;
         int    x       = 2;
         string srcName = _repo.GetFile(_transferFileId)?.DisplayName ?? _transferFileId.ToUpper();
-        string dstName = _transferDst == "local" ? "LOCAL STATION" : "SUIRDC UPLINK";
+        string dstName = _locNames[(int)_transferDst];
 
         int    arrowSuffix = 2 + dstName.Length;
         int    dashMax     = Math.Max(0, innerW - arrowSuffix - 4);
         int    dashes      = (int)(_transferProgress * dashMax);
         string arrowLine   = "  " + new string('─', dashes) + "► " + dstName;
 
-        WriteTransmitBorder(buffer, 0, startRow,     fullW, "─ TRANSMITTING ");
+        Ui.WriteTransmitBorder(buffer, 0, startRow, innerW, "─ TRANSMITTING ");
         buffer.WriteAt(x, startRow + 1,
-            Truncate($"  {srcName}", innerW).PadRight(innerW), ExoColors.PhosphorText);
+            Ui.Truncate($"  {srcName}", innerW).PadRight(innerW), ExoColors.PhosphorText);
         buffer.WriteAt(x, startRow + 2,
             arrowLine.PadRight(Math.Min(innerW, arrowLine.Length + 1)), ExoColors.ProksPale);
         if (startRow + 3 <= endRow)
-            WriteTransmitBorder(buffer, 0, startRow + 3, fullW, "");
+            Ui.WriteTransmitBorder(buffer, 0, startRow + 3, innerW, "");
     }
 
-    private static void WriteTransmitBorder(IRenderBuffer buffer, int col, int row,
-        int fullWidth, string label)
+    // ── defrag panel ──────────────────────────────────────────────────────────
+
+    private void RenderDefragPanel(IRenderBuffer buffer, int startRow, int endRow, int innerW)
     {
-        int dashCount = Math.Max(0, fullWidth - 2 - label.Length);
-        buffer.WriteAt(col, row,
-            "├" + label + new string('─', dashCount) + "┤",
-            ExoColors.ProksBorder);
+        if (endRow - startRow < 3) return;
+
+        int    x       = 2;
+        string locName = _locNames[(int)_defragLoc];
+
+        int   remaining = CountMismatches(_defragCur, _defragTarget);
+        float progress  = _defragTotal == 0 ? 1f : 1f - (float)remaining / _defragTotal;
+        const int barW  = 24;
+        int   fill      = Math.Clamp((int)(progress * barW), 0, barW);
+        string bar      = "[" + new string('─', fill) + new string('·', barW - fill) + "]";
+
+        Ui.WriteTransmitBorder(buffer, 0, startRow, innerW, "─ DEFRAGMENTATION ");
+        buffer.WriteAt(x, startRow + 1, $"  {locName} — COMPACTING STORAGE", ExoColors.PhosphorText);
+        buffer.WriteAt(x, startRow + 2, "  " + bar, ExoColors.ProksPale);
+        buffer.WriteAt(x + 4 + barW, startRow + 2, $"  {_defragMoves} BLOCKS RELOCATED", ExoColors.ProksDark);
+        if (startRow + 3 <= endRow)
+            Ui.WriteTransmitBorder(buffer, 0, startRow + 3, innerW, "");
     }
 
-    // ── file list hint (reader area when no file is open) ────────────────────
+    // ── reader area placeholders ──────────────────────────────────────────────
 
     private static void RenderFileListHint(IRenderBuffer buffer, int startRow, int endRow, int innerW)
     {
         int midRow = startRow + (endRow - startRow) / 2;
         int x      = 2;
-        string msg = "PRESS ENTER TO READ FILE";
-        buffer.WriteAt(x + (innerW - x - msg.Length) / 2, midRow, msg, ExoColors.ProksBorder);
+        string msg = "AWAITING READ COMMAND";
+        buffer.WriteAt(x + (innerW - x - msg.Length) / 2, midRow, msg, ExoColors.ProksDark);
     }
-
-    // ── tape select reader placeholder ───────────────────────────────────────
 
     private static void RenderTapeSelectReader(IRenderBuffer buffer, int startRow, int endRow, int innerW)
     {
         int midRow = startRow + (endRow - startRow) / 2;
         int x      = 2;
 
-        string msg = "SELECT A STORAGE LOCATION";
+        string msg = "SELECT STORAGE MEDIUM";
         string sub = "↑↓  NAVIGATE     ENTER  OPEN FILES";
 
         buffer.WriteAt(x + (innerW - x - msg.Length) / 2, midRow - 1, msg, ExoColors.ProksText);
-        buffer.WriteAt(x + (innerW - x - sub.Length) / 2, midRow + 1, sub, ExoColors.ProksBorder);
+        buffer.WriteAt(x + (innerW - x - sub.Length) / 2, midRow + 1, sub, ExoColors.ProksDark);
     }
 
     // ── file reader ───────────────────────────────────────────────────────────
 
     private void RenderFileReader(IRenderBuffer buffer, int startRow, int endRow, int innerW)
     {
-        if (_listFiles.Count == 0) return;
+        if (_listFiles.Count == 0 || _listIdx >= _listFiles.Count) return;
+        var file = _listFiles[_listIdx];
 
-        var file = _listIdx < _listFiles.Count ? _listFiles[_listIdx] : null;
-        if (file == null) return;
+        int x = 2;
 
-        int  x         = 2;
-        bool isPreview = _state != MemState.FileRead;
-
-        // Label and title colors distinguish preview from active reading
-        string label    = isPreview ? "[PREVIEW]" : "[READING]";
-        string labelCol = isPreview ? ExoColors.ProksBorder : ExoColors.PhosphorDim;
-        string titleCol = isPreview ? ExoColors.ProksText   : ExoColors.PhosphorText;
-        string titleLine = Truncate($"{file.DisplayName} [{file.Type}]  —  {file.Description}", innerW - x - 12);
-
-        buffer.WriteAt(x, startRow, titleLine, titleCol);
-        buffer.WriteAt(innerW - label.Length, startRow, label, labelCol);
+        string titleLine = Ui.Truncate($"{file.DisplayName} [{file.Type}]  —  {file.Description}", innerW - x - 12);
+        buffer.WriteAt(x, startRow, titleLine, ExoColors.PhosphorText);
+        buffer.WriteAt(innerW - 9, startRow, "[READING]", ExoColors.PhosphorDim);
 
         buffer.WriteAt(x, startRow + 1,
             new string('─', Math.Min(innerW - x, 60)), ExoColors.ProksBorder);
@@ -886,41 +864,33 @@ public sealed class MemorySection : IBaseSection
         int maxRows    = endRow - contentTop + 1;
         if (maxRows <= 0) return;
 
-        if (isPreview)
-        {
-            _readerScroll = 0;
-        }
-        else
-        {
-            int maxScroll = Math.Max(0, _readerLines.Count - maxRows);
-            _readerScroll = Math.Clamp(_readerScroll, 0, maxScroll);
-        }
+        int maxScroll = Math.Max(0, _readerLines.Count - maxRows);
+        _readerScroll = Math.Clamp(_readerScroll, 0, maxScroll);
 
-        bool hasAbove = !isPreview && _readerScroll > 0;
-        bool hasBelow = !isPreview && (_readerScroll + maxRows < _readerLines.Count);
+        bool hasAbove = _readerScroll > 0;
+        bool hasBelow = _readerScroll + maxRows < _readerLines.Count;
 
         for (int i = 0; i < maxRows; i++)
         {
-            int li  = _readerScroll + i;
+            int li = _readerScroll + i;
             if (li >= _readerLines.Count) break;
             int row = contentTop + i;
 
-            string line = Truncate(_readerLines[li], innerW - x - 8);
+            string line = Ui.Truncate(_readerLines[li], innerW - x - 8);
             buffer.WriteAt(x, row, line, ExoColors.ProksText);
 
-            // Scroll indicators on the right of first/last visible content row
             if (hasAbove && i == 0)
-                buffer.WriteAt(innerW - 7, row, "▲ more", ExoColors.ProksPale);
+                buffer.WriteAt(innerW - 7, row, "▲ more", ExoColors.ProksDark);
             else if (hasBelow && i == maxRows - 1)
-                buffer.WriteAt(innerW - 7, row, "▼ more", ExoColors.ProksPale);
+                buffer.WriteAt(innerW - 7, row, "▼ more", ExoColors.ProksDark);
         }
 
-        if (!isPreview && _readerLines.Count > 0)
+        if (_readerLines.Count > 0)
         {
             int    page  = _readerScroll / Math.Max(1, maxRows) + 1;
             int    total = (_readerLines.Count - 1) / Math.Max(1, maxRows) + 1;
             string ind   = $"↕ {page}/{total}";
-            buffer.WriteAt(innerW - ind.Length - 1, endRow, ind, ExoColors.ProksBorder);
+            buffer.WriteAt(innerW - ind.Length - 1, endRow, ind, ExoColors.ProksDark);
         }
     }
 
@@ -937,7 +907,6 @@ public sealed class MemorySection : IBaseSection
                                        ? "↑↓  navigate     ENTER  read     S  send     D  delete     F  defrag     ESC  tape select"
                                        : "↑↓  navigate     ENTER  read     ESC  tape select",
             MemState.FileRead      => "↑↓  scroll     ESC  back to list",
-            MemState.SendSelect    => "↑↓  select target     ENTER  confirm     ESC  cancel",
             MemState.SendConfirm   => "Y  confirm transfer     N / ESC  cancel",
             MemState.DeleteConfirm => "Y  confirm delete     N / ESC  cancel",
             MemState.Transferring  => "TRANSFER IN PROGRESS — PLEASE WAIT",
@@ -946,30 +915,6 @@ public sealed class MemorySection : IBaseSection
         };
         if (hints.Length == 0) return;
         int hintX = Math.Max(0, (innerW - hints.Length) / 2);
-        buffer.WriteAt(hintX, y, hints, ExoColors.ProksPale);
+        buffer.WriteAt(hintX, y, hints, ExoColors.ProksDark);
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private static void WriteBorder(IRenderBuffer buffer, int x, int y, int w,
-        string leftTitle, string rightTitle)
-    {
-        int inner   = w - 2;
-        int midDash = Math.Max(1, inner - 1 - leftTitle.Length - rightTitle.Length - 1);
-
-        buffer.WriteAt(x, y, "┌─", ExoColors.ProksBorder);
-        int cur = x + 2;
-        buffer.WriteAt(cur, y, leftTitle, ExoColors.ProksText);
-        cur += leftTitle.Length;
-        buffer.WriteAt(cur, y, new string('─', midDash), ExoColors.ProksBorder);
-        cur += midDash;
-        buffer.WriteAt(cur, y, rightTitle, ExoColors.SignalText);
-        cur += rightTitle.Length;
-        buffer.WriteAt(cur, y, "─┐", ExoColors.ProksBorder);
-    }
-
-    private static string Truncate(string s, int max) =>
-        s.Length <= max ? s : s[..Math.Max(0, max - 1)] + "…";
 }

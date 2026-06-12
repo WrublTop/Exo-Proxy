@@ -22,6 +22,9 @@ public class CommsRepository
     private List<CommsMessage> _all   = [];
     private CommsState         _state = new();
 
+    // Set when a file existed but could not be parsed.
+    public string? LoadWarning { get; private set; }
+
     public void Load(string operatorLogin)
     {
         _statePath = Path.Combine(AppContext.BaseDirectory, "SaveData",
@@ -34,7 +37,12 @@ public class CommsRepository
                 _all = _deserializer.Deserialize<List<CommsMessage>>(
                     File.ReadAllText(_contentPath)) ?? [];
             }
-            catch { _all = []; }
+            catch
+            {
+                // Content file is shipped data, not a save — never quarantined.
+                _all = [];
+                LoadWarning = "COMMS ARCHIVE UNREADABLE — CONTACT SUIRDC MAINTENANCE";
+            }
         }
 
         if (File.Exists(_statePath))
@@ -44,7 +52,12 @@ public class CommsRepository
                 _state = _deserializer.Deserialize<CommsState>(
                     File.ReadAllText(_statePath)) ?? new();
             }
-            catch { _state = new(); }
+            catch
+            {
+                SaveGuard.Quarantine(_statePath);
+                _state = new();
+                LoadWarning = "COMMS CHECKSUM FAILURE — STATE RESTORED FROM DEFAULTS";
+            }
         }
     }
 

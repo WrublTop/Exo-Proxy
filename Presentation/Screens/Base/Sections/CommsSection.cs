@@ -5,15 +5,15 @@ namespace ExoProxy.Presentation.Screens.Base.Sections;
 
 public sealed class CommsSection : IBaseSection
 {
-    public string SectionId => "comms";
+    public string SectionId => SectionIds.Comms;
     public BaseSectionResponse Response { get; private set; } = new(BaseSectionRequest.Stay, null);
 
     private enum CommState { List, Reading, ChoosingReply, Transmitting }
     private CommState _state = CommState.List;
 
-    private readonly CommsRepository _repo;
-    private readonly OperatorAccount _account;
-    private readonly GameSettings    _settings;
+    private readonly CommsRepository  _repo;
+    private readonly OperatorAccount  _account;
+    private readonly OperatorProgress _progress;
 
     // ── inbox ─────────────────────────────────────────────────────────────────
     private List<CommsMessage> _inbox      = [];
@@ -36,7 +36,7 @@ public sealed class CommsSection : IBaseSection
     // ── transmit animation ────────────────────────────────────────────────────
     private ReplyOption?   _chosenOption     = null;
     private string?        _chosenForMsgId   = null;
-    private DateTimeOffset _txStartTime;
+    private TimeSpan       _txStartTime;
     private int            _txElapsedMs      = 0;
     private int            _typingDurationMs = 4000;
 
@@ -48,38 +48,32 @@ public sealed class CommsSection : IBaseSection
     private const int Gap2Ms     = 500;   // pause before RX
     private const int RxHoldMs   = 1400;  // total RX box duration
 
-    // ── blink ─────────────────────────────────────────────────────────────────
-    private bool           _blinkVisible = true;
-    private DateTimeOffset _blinkTimer;
-    private const int      BlinkMs       = 500;
+    // ── blink / clock ─────────────────────────────────────────────────────────
+    private BlinkState _blink;
+    private TimeSpan   _now;         // last Update tick — input handlers read this
 
     // ── layout ───────────────────────────────────────────────────────────────
     private const int LeftW  = 44;
     private const int LeftI  = LeftW - 2;   // 42
     private const int Gap    = 2;
 
-    public CommsSection(OperatorAccount account, CommsRepository repo, GameSettings settings)
+    public CommsSection(OperatorAccount account, CommsRepository repo, OperatorProgress progress)
     {
-        _account    = account;
-        _repo       = repo;
-        _settings   = settings;
-        _inbox      = _repo.GetInbox(_settings.Sol);
-        _blinkTimer = DateTimeOffset.UtcNow;
+        _account  = account;
+        _repo     = repo;
+        _progress = progress;
+        _inbox    = _repo.GetInbox(_progress.Sol);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Update
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Update ───────────────────────────────────────────────────────────────
 
-    public void Update(DateTimeOffset now, InputEvent? input)
+    public void Update(GameTime time, InputEvent? input)
     {
-        Response = new(BaseSectionRequest.Stay, null);
+        var now = time.Total;
+        _now = now;
+        _blink.Update(now);
 
-        if (now - _blinkTimer >= TimeSpan.FromMilliseconds(BlinkMs))
-        {
-            _blinkVisible = !_blinkVisible;
-            _blinkTimer   = now;
-        }
+        Response = new(BaseSectionRequest.Stay, null);
 
         if (_state == CommState.Transmitting)
         {
@@ -144,7 +138,7 @@ public sealed class CommsSection : IBaseSection
         _scrollOffset     = 0;
         _lastRightInnerW  = 0;
         _repo.MarkThreadRead(root.Id);
-        _inbox = _repo.GetInbox(_settings.Sol);
+        _inbox = _repo.GetInbox(_progress.Sol);
         _state = CommState.Reading;
     }
 
@@ -152,7 +146,7 @@ public sealed class CommsSection : IBaseSection
     {
         _chosenOption   = option;
         _chosenForMsgId = _pendingMessageId;
-        _txStartTime    = DateTimeOffset.UtcNow;
+        _txStartTime    = _now;
         _txElapsedMs    = 0;
 
         // Typing duration = response body length / (40 WPM × 2) in ms, clamped to [2s, 14s]
@@ -165,7 +159,7 @@ public sealed class CommsSection : IBaseSection
         _state = CommState.Transmitting;
     }
 
-    private void TickTransmit(DateTimeOffset now)
+    private void TickTransmit(TimeSpan now)
     {
         _txElapsedMs = (int)(now - _txStartTime).TotalMilliseconds;
         int typingStart = TxHoldMs + SentMs + Gap1Ms;
@@ -178,14 +172,12 @@ public sealed class CommsSection : IBaseSection
     {
         if (_chosenOption == null || _chosenForMsgId == null || _rootMessage == null) return;
         _repo.CommitReply(_chosenForMsgId, _chosenOption.Id, _chosenOption.Unlocks);
-        _inbox = _repo.GetInbox(_settings.Sol);
+        _inbox = _repo.GetInbox(_progress.Sol);
         OpenMessage(_rootMessage);
         _scrollOffset = int.MaxValue;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Render ───────────────────────────────────────────────────────────────
 
     public void Render(IRenderBuffer buffer)
     {
@@ -223,7 +215,7 @@ public sealed class CommsSection : IBaseSection
         // Top border: "┌─ COMMS ─────────────── INBOX (3) ─┐"
         string ltTitle = " COMMS ";
         string rtTitle = $" INBOX ({_inbox.Count}) ";
-        WriteDualTitleBorder(buffer, x, panelTop, LeftW,
+        Ui.WriteDualTitleBorder(buffer, x, panelTop, LeftW,
             ltTitle, rtTitle,
             ExoColors.ProksText, ExoColors.ProksPale,
             ExoColors.ProksBorder);
@@ -258,13 +250,13 @@ public sealed class CommsSection : IBaseSection
 
         bool   unread  = _repo.HasUnreadInThread(msg.Id);
         bool   isSuirdc = msg.Sender == "suirdc";
-        string arrow   = selected ? (_blinkVisible ? "►" : "▷") : " ";
-        string sender  = Truncate(msg.SenderDisplay, 11).PadRight(11);
-        string subject = Truncate(msg.Subject, 19).PadRight(19);
+        string arrow   = selected ? (_blink.Visible ? "►" : "▷") : " ";
+        string sender  = Ui.Truncate(msg.SenderDisplay, 11).PadRight(11);
+        string subject = Ui.Truncate(msg.Subject, 19).PadRight(19);
         string sol     = msg.Sol.PadLeft(8);
 
         string arrowColor = selected
-            ? (_blinkVisible ? ExoColors.PhosphorText : ExoColors.PhosphorDim)
+            ? (_blink.Visible ? ExoColors.PhosphorText : ExoColors.PhosphorDim)
             : ExoColors.ProksDark;
         string rowColor = selected ? ExoColors.PhosphorText
             : (unread ? (isSuirdc ? ExoColors.ProksText : ExoColors.PhosphorBright)
@@ -285,8 +277,8 @@ public sealed class CommsSection : IBaseSection
         if (_state == CommState.List || _rootMessage == null)
         {
             string ltTitle = $" OPERATOR: {_account.Login} ";
-            string rtTitle = $" {_settings.SolDisplay} ";
-            WriteDualTitleBorder(buffer, x, panelTop, w,
+            string rtTitle = $" {_progress.SolDisplay} ";
+            Ui.WriteDualTitleBorder(buffer, x, panelTop, w,
                 ltTitle, rtTitle,
                 ExoColors.ProksDark, ExoColors.SignalText,
                 ExoColors.ProksBorder);
@@ -296,7 +288,7 @@ public sealed class CommsSection : IBaseSection
             bool   isSuirdc  = _rootMessage.Sender == "suirdc";
             string senderTitle = $" {_rootMessage.SenderDisplay} ";
             string senderColor = isSuirdc ? ExoColors.ProksText : ExoColors.PhosphorText;
-            WriteDualTitleBorder(buffer, x, panelTop, w,
+            Ui.WriteDualTitleBorder(buffer, x, panelTop, w,
                 senderTitle, "",
                 senderColor, ExoColors.ProksBorder,
                 ExoColors.ProksBorder);
@@ -367,7 +359,7 @@ public sealed class CommsSection : IBaseSection
 
         // row 0: empty
         // row 1: subject (left) + sol (right-aligned)
-        string subject = Truncate(msg.Subject, innerW - 12);
+        string subject = Ui.Truncate(msg.Subject, innerW - 12);
         string sol     = msg.Sol;
         int    solX    = x + innerW - 2 - sol.Length;
         buffer.WriteAt(x + 2,  y + 1, subject, subjectColor);
@@ -427,12 +419,12 @@ public sealed class CommsSection : IBaseSection
         for (int i = 0; i < _pendingOptions.Count; i++)
         {
             bool   sel        = i == _replyIndex;
-            string arrow      = sel ? (_blinkVisible ? "►" : "▷") : " ";
+            string arrow      = sel ? (_blink.Visible ? "►" : "▷") : " ";
             string arrowColor = sel
-                ? (_blinkVisible ? ExoColors.PhosphorText : ExoColors.PhosphorDim)
+                ? (_blink.Visible ? ExoColors.PhosphorText : ExoColors.PhosphorDim)
                 : ExoColors.ProksDark;
             string num        = $" {i + 1}  ";
-            string text       = Truncate(_pendingOptions[i].Text, innerW - num.Length - 2);
+            string text       = Ui.Truncate(_pendingOptions[i].Text, innerW - num.Length - 2);
 
             buffer.WriteAt(x,                  firstOptY + i, arrow, arrowColor);
             buffer.WriteAt(x + 1,              firstOptY + i, num,   ExoColors.ProksDark);
@@ -485,7 +477,7 @@ public sealed class CommsSection : IBaseSection
             int frame     = Math.Min(FrameCount - 1, _txElapsedMs / FrameMs);
             int txDashes  = FrameCount > 1 ? txDashMax * frame / (FrameCount - 1) : txDashMax;
 
-            WriteTransmitBorder(buffer, borderX, txBase, innerW, "─ TRANSMITTING ");
+            Ui.WriteTransmitBorder(buffer, borderX, txBase, innerW, "─ TRANSMITTING ");
             buffer.WriteAt(x, txBase + 2,
                 ("  " + new string('─', txDashes) + "► " + recipient).PadRight(innerW),
                 ExoColors.ProksPale);
@@ -493,17 +485,17 @@ public sealed class CommsSection : IBaseSection
         else if (_txElapsedMs < TxHoldMs + SentMs)
         {
             // Phase 2: MESSAGE SENT — reply appears in chatlog above, box confirms below
-            WriteTransmitBorder(buffer, borderX, txBase, innerW, "─ MESSAGE SENT ");
+            Ui.WriteTransmitBorder(buffer, borderX, txBase, innerW, "─ MESSAGE SENT ");
             if (_chosenOption != null)
                 buffer.WriteAt(x, txBase + 2,
-                    Truncate("  > " + _chosenOption.Text, innerW).PadRight(innerW),
+                    Ui.Truncate("  > " + _chosenOption.Text, innerW).PadRight(innerW),
                     ExoColors.PhosphorDim);
         }
         else if (_txElapsedMs >= typingStart && _txElapsedMs < typingStart + _typingDurationMs)
         {
             // Phase 3: Typing indicator — messenger-style dots attributed to recipient
             string typingLabel = "─ " + recipient.ToUpper() + " TYPING ";
-            WriteTransmitBorder(buffer, borderX, txBase, innerW, typingLabel);
+            Ui.WriteTransmitBorder(buffer, borderX, txBase, innerW, typingLabel);
 
             const int DotStepMs = 400;
             int dotStep = (_txElapsedMs - typingStart) / DotStepMs % 3;
@@ -520,7 +512,7 @@ public sealed class CommsSection : IBaseSection
 
             string rxLine = "◄" + new string('─', rxDashes) + " " + recipient;
             int    rxX    = x + innerW - rxLine.Length;
-            WriteTransmitBorder(buffer, borderX, txBase, innerW, "─ TRANSMITTING ");
+            Ui.WriteTransmitBorder(buffer, borderX, txBase, innerW, "─ TRANSMITTING ");
             buffer.WriteAt(x,               txBase + 2, "".PadRight(innerW), ExoColors.ProksDark);
             buffer.WriteAt(Math.Max(x, rxX), txBase + 2, rxLine,             ExoColors.SignalDim);
         }
@@ -539,15 +531,6 @@ public sealed class CommsSection : IBaseSection
         }
     }
 
-    private static void WriteTransmitBorder(IRenderBuffer buffer, int borderX, int y,
-                                             int innerW, string label)
-    {
-        int dashCount = Math.Max(0, innerW - label.Length);
-        buffer.WriteAt(borderX, y,
-            "├" + label + new string('─', dashCount) + "┤",
-            ExoColors.ProksBorder);
-    }
-
     // ── hints bar ─────────────────────────────────────────────────────────────
 
     private void RenderHints(IRenderBuffer buffer, int y, int centerX)
@@ -563,39 +546,7 @@ public sealed class CommsSection : IBaseSection
         buffer.WriteAt(centerX - hints.Length / 2, y, hints, ExoColors.ProksDark);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private static void WriteDualTitleBorder(IRenderBuffer buffer, int x, int y, int w,
-        string leftTitle, string rightTitle,
-        string leftColor, string rightColor, string borderColor)
-    {
-        // "┌─ LEFT ──────────── RIGHT ─┐"
-        int inner    = w - 2;
-        int leftDash = 1;
-        int rightDash = rightTitle.Length > 0 ? 1 : 1;
-        int midDash  = inner - leftDash - leftTitle.Length - rightTitle.Length - rightDash;
-        if (midDash < 1) midDash = 1;
-
-        int curX = x;
-        buffer.WriteAt(curX, y, "┌" + new string('─', leftDash), borderColor);
-        curX += 1 + leftDash;
-
-        buffer.WriteAt(curX, y, leftTitle, leftColor);
-        curX += leftTitle.Length;
-
-        buffer.WriteAt(curX, y, new string('─', midDash), borderColor);
-        curX += midDash;
-
-        if (rightTitle.Length > 0)
-        {
-            buffer.WriteAt(curX, y, rightTitle, rightColor);
-            curX += rightTitle.Length;
-        }
-
-        buffer.WriteAt(curX, y, new string('─', rightDash) + "┐", borderColor);
-    }
+    // ── Helpers ──────────────────────────────────────────────────────────────
 
     private List<string> BuildThreadLines(List<CommsMessage> chain, int wrapWidth)
     {
@@ -633,13 +584,13 @@ public sealed class CommsSection : IBaseSection
         if (tagged.StartsWith("YOU:"))
         {
             string t = tagged[4..];
-            return (Truncate(t, innerW).PadRight(innerW), ExoColors.PhosphorText);
+            return (Ui.Truncate(t, innerW).PadRight(innerW), ExoColors.PhosphorText);
         }
 
         if (tagged.StartsWith("MSG:"))
         {
             string t = "  " + tagged[4..];
-            return (Truncate(t, innerW).PadRight(innerW), ExoColors.ProksText);
+            return (Ui.Truncate(t, innerW).PadRight(innerW), ExoColors.ProksText);
         }
 
         return ("".PadRight(innerW), ExoColors.ProksDark);
@@ -667,6 +618,5 @@ public sealed class CommsSection : IBaseSection
         return result;
     }
 
-    private static string Truncate(string s, int max) =>
-        s.Length <= max ? s : s[..(max - 1)] + "…";
+
 }

@@ -3,6 +3,8 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace ExoProxy.Data;
 
+// Global display/system preferences. Player progress (SOL etc.) does NOT
+// belong here — it is per-operator and lives in OperatorProgress.
 public class GameSettings
 {
     private static readonly string _savePath =
@@ -14,17 +16,15 @@ public class GameSettings
 
     private static readonly IDeserializer _deserializer = new DeserializerBuilder()
         .WithNamingConvention(UnderscoredNamingConvention.Instance)
+        .IgnoreUnmatchedProperties()   // tolerates legacy keys (e.g. old `sol:`)
         .Build();
 
-    public int    Sol              { get; set; } = 1;
-    public string SolDisplay      => $"SOL {Sol:D3}";
-
-    public string Theme           { get; set; } = "AMBER";
-    public string Brightness      { get; set; } = "NORMAL";
-    public string Contrast        { get; set; } = "MEDIUM";
-    public string Animations      { get; set; } = "ON";
-    public string Language        { get; set; } = "ENGLISH";
-    public string TypewriterSpeed { get; set; } = "NORMAL";
+    public string Theme           { get; set; } = "AMBER";   // wired → ExoColors.Apply
+    public string Brightness      { get; set; } = "NORMAL";  // wired → ExoColors.Apply
+    public string Contrast        { get; set; } = "MEDIUM";  // TODO: unwired — implement when gameplay UI pass starts
+    public bool   Animations      { get; set; } = true;      // TODO: unwired — should gate boot/transfer animations
+    public string Language        { get; set; } = "ENGLISH"; // TODO: unwired — requires a string table before wiring
+    public string TypewriterSpeed { get; set; } = "NORMAL";  // TODO: unwired — no consumer yet
 
     public static GameSettings Load()
     {
@@ -37,6 +37,7 @@ public class GameSettings
         }
         catch
         {
+            SaveGuard.Quarantine(_savePath);
             return new GameSettings();
         }
     }
