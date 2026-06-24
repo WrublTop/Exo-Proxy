@@ -1,4 +1,4 @@
-using YamlDotNet.Serialization;
+﻿using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
 namespace ExoProxy.Data;
@@ -19,8 +19,8 @@ public class CommsRepository
         .WithNamingConvention(UnderscoredNamingConvention.Instance)
         .Build();
 
-    private List<CommsMessage> _all   = [];
-    private CommsState         _state = new();
+    private List<CommsMessage> _all = [];
+    private CommsState _state = new();
 
     // Set when a file existed but could not be parsed.
     public string? LoadWarning { get; private set; }
@@ -114,7 +114,7 @@ public class CommsRepository
             List<ReplyOption>? PendingOptions,
             string? PendingMessageId) BuildThread(string rootId)
     {
-        var chain   = new List<CommsMessage>();
+        var chain = new List<CommsMessage>();
         var current = GetMessage(rootId);
 
         while (current != null)

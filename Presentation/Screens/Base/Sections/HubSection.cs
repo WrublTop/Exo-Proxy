@@ -1,5 +1,6 @@
 ﻿using ExoProxy.Core;
 using ExoProxy.Data;
+using ExoProxy.Data.Mission;
 
 namespace ExoProxy.Presentation.Screens.Base.Sections;
 
@@ -13,11 +14,17 @@ public sealed class HubSection : IBaseSection
     private readonly bool _devMode;
     private readonly CommsRepository? _commsRepo;
     private readonly MemoryRepository? _memRepo;
+    private readonly MissionWorld? _world;
     private string _input = "";
     private string _message = "";
     private bool _messageIsError;
     private bool _helpVisible;
     private BlinkState _blink;
+
+    // Set when the operator asks to deploy below the safe charge: they must
+    // confirm leaving for the field with a low battery.
+    private bool _awaitingFieldDeploy;
+    private const int LowChargeThreshold = 30;
 
     private const int BoxWidth = 64;
     private const int BoxInner = BoxWidth - 2;
@@ -46,13 +53,15 @@ public sealed class HubSection : IBaseSection
     private readonly (string Cmd, string Desc, bool IsSystem)[] _commands;
 
     public HubSection(OperatorAccount account, OperatorProgress progress, string? loadWarning = null,
-                      bool devMode = false, CommsRepository? commsRepo = null, MemoryRepository? memRepo = null)
+                      bool devMode = false, CommsRepository? commsRepo = null, MemoryRepository? memRepo = null,
+                      MissionWorld? world = null)
     {
         _account   = account;
         _progress  = progress;
         _devMode   = devMode;
         _commsRepo = commsRepo;
         _memRepo   = memRepo;
+        _world     = world;
         _commands  = devMode ? [.. _baseCommands, .. _devCommands] : _baseCommands;
 
         // Save-integrity warnings surface here, in the system's own voice.
@@ -73,6 +82,23 @@ public sealed class HubSection : IBaseSection
         if (input is null) return;
 
         var key = input.Value.Key;
+
+        // Low-charge deployment confirmation takes over input until answered.
+        if (_awaitingFieldDeploy)
+        {
+            if (key.Key == ConsoleKey.Y)
+            {
+                _awaitingFieldDeploy = false;
+                Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, SectionIds.Mission);
+            }
+            else if (key.Key is ConsoleKey.N or ConsoleKey.Escape)
+            {
+                _awaitingFieldDeploy = false;
+                _message        = "DEPLOYMENT HELD — CHARGING";
+                _messageIsError = false;
+            }
+            return;
+        }
 
         if (key.Key == ConsoleKey.Backspace)
         {
@@ -147,9 +173,22 @@ public sealed class HubSection : IBaseSection
             return;
         }
 
-        // These modules are designed but not built yet — fail in-fiction
-        // instead of silently swallowing an advertised command.
-        if (cmd == "MISSION" || cmd == "DIAG")
+        if (cmd == "MISSION")
+        {
+            // Deploying below the safe charge needs a confirmation — once in
+            // the field the rover can't come back to top up.
+            if (_world is not null && !_world.IsFull && _world.PercentDisplay < LowChargeThreshold)
+            {
+                _awaitingFieldDeploy = true;
+                return;
+            }
+            Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, SectionIds.Mission);
+            return;
+        }
+
+        // DIAG is designed but not built yet — fail in-fiction instead of
+        // silently swallowing an advertised command.
+        if (cmd == "DIAG")
         {
             _message        = "MODULE OFFLINE — AWAITING SUIRDC PROVISIONING";
             _messageIsError = true;
@@ -194,13 +233,13 @@ public sealed class HubSection : IBaseSection
         {
             string target = cmd.Length > 4 ? cmd[5..].Trim().ToLowerInvariant() : "";
 
-            if (target is SectionIds.Comms or SectionIds.Memory or SectionIds.Settings)
+            if (target is SectionIds.Comms or SectionIds.Memory or SectionIds.Settings or SectionIds.Mission)
             {
                 Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, target);
                 return true;
             }
 
-            _message        = "Usage: GOTO COMMS | MEMORY | SETTINGS";
+            _message        = "Usage: GOTO COMMS | MEMORY | SETTINGS | MISSION";
             _messageIsError = true;
             return true;
         }
@@ -227,6 +266,7 @@ public sealed class HubSection : IBaseSection
             _progress.Sol = 1;
             _commsRepo?.Load(_account.Login);
             _memRepo?.Load(_account.Login);
+            _world?.Reset();
             _message        = "[DEV] DEV save data wiped — back to SOL 001";
             _messageIsError = false;
             return true;
@@ -276,7 +316,13 @@ public sealed class HubSection : IBaseSection
         buffer.WriteAt(left, centerY + 2, "└" + new string('─', BoxInner) + "┘", ExoColors.ProksBorder);
 
         // ── /help hint or error ───────────────────────────────────────────────
-        if (!string.IsNullOrEmpty(_message))
+        if (_awaitingFieldDeploy && _world is not null)
+        {
+            string prompt = $"LOW CHARGE ({_world.PercentDisplay}%) — PROCEED TO FIELD? Y/N";
+            int promptX = (buffer.Width - prompt.Length) / 2;
+            buffer.WriteAt(promptX, centerY + 4, prompt, ExoColors.SignalBright);
+        }
+        else if (!string.IsNullOrEmpty(_message))
         {
             string color = _messageIsError ? ExoColors.FaultText : ExoColors.ProksPale;
             int msgX = (buffer.Width - _message.Length) / 2;
@@ -313,5 +359,13 @@ public sealed class HubSection : IBaseSection
         buffer.WriteAt(left, statusY, $"OPERATOR: {_account.Login}", ExoColors.ProksPale);
         string sol = _progress.SolDisplay;
         buffer.WriteAt(left + BoxWidth - sol.Length, statusY, sol, ExoColors.SignalText);
+
+        // Rover charge ticks up here while docked — centred between operator and SOL.
+        if (_world is not null)
+        {
+            string charge = _world.IsFull ? "POWER 100%" : $"CHARGING {_world.PercentDisplay}%";
+            string color  = _world.IsFull ? ExoColors.SignalText : ExoColors.SignalBright;
+            buffer.WriteAt(left + (BoxWidth - charge.Length) / 2, statusY, charge, color);
+        }
     }
 }

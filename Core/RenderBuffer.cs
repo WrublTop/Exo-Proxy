@@ -81,7 +81,11 @@ public sealed class RenderBuffer : IRenderBuffer
                 string? color = _colors[x, y];
                 if (color != lastColor)
                 {
-                    _sb.Append(color ?? ExoCodes.Reset);
+                    // Reset first, so a previous cell's background (or foreground)
+                    // can never bleed into the next — this lets the terrain overlay
+                    // paint background colours without tinting the panels beside it.
+                    _sb.Append(ExoCodes.Reset);
+                    if (color != null) _sb.Append(color);
                     lastColor = color;
                 }
                 _sb.Append(_chars[x, y]);
