@@ -1,0 +1,72 @@
+namespace ExoProxy.Data;
+
+public static class RoverElectronicsFailureChooser
+{
+    public static IReadOnlyList<RoverElectronics> ApplyPendingFailures(
+        RoverStats roverStats,
+        IList<RoverElectronics> electronics,
+        Random? random = null)
+    {
+        ArgumentNullException.ThrowIfNull(roverStats);
+        ArgumentNullException.ThrowIfNull(electronics);
+
+        if (electronics.Count == 0)
+            return [];
+
+        int targetThresholds = GetDamageThresholdCount(roverStats);
+        int pendingFailures = Math.Max(0, targetThresholds - roverStats.ProcessedDamageThresholds);
+
+        if (pendingFailures == 0)
+            return [];
+
+        var candidates = electronics
+            .Where(item => !item.IsDamaged)
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            roverStats.ProcessedDamageThresholds = targetThresholds;
+            return [];
+        }
+
+        random ??= Random.Shared;
+
+        int failuresToApply = Math.Min(pendingFailures, candidates.Count);
+        var failures = new List<RoverElectronics>(failuresToApply);
+
+        for (int i = 0; i < failuresToApply; i++)
+        {
+            int index = random.Next(candidates.Count);
+            var selected = candidates[index];
+            candidates.RemoveAt(index);
+
+            selected.IsDamaged = true;
+
+            if (random.Next(2) == 0)
+                selected.IsShortCircuited = true;
+            else
+                selected.IsOpenCircuit = true;
+
+            failures.Add(selected);
+        }
+
+        roverStats.ProcessedDamageThresholds = targetThresholds;
+        return failures;
+    }
+
+    public static int GetDamageThresholdCount(RoverStats roverStats)
+    {
+        ArgumentNullException.ThrowIfNull(roverStats);
+
+        if (roverStats.MaxHealth <= 0)
+            return 0;
+
+        double damage = roverStats.MaxHealth - roverStats.CurrentHealth;
+        double thresholdSize = roverStats.MaxHealth * 0.1;
+
+        if (damage <= 0 || thresholdSize <= 0)
+            return 0;
+
+        return (int)Math.Floor(damage / thresholdSize);
+    }
+}

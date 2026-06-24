@@ -14,6 +14,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="Data\RoverElectronicsFailureChooser" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="Content\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

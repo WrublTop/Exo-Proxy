@@ -32,15 +32,20 @@ public sealed class BaseScreen : IScreen
         memRepo.Load(account.Login);
 
         // Surface the first save-integrity warning diegetically in the hub.
+        var roverStats = RoverStats.Load(account.Login);
+
         string? loadWarning = progress.LoadWarning
                               ?? memRepo.LoadWarning
-                              ?? commsRepo.LoadWarning;
+                              ?? commsRepo.LoadWarning
+                              ?? roverStats.LoadWarning;
 
         var hub       = new Sections.HubSection(account, progress, loadWarning,
-                                                devMode, commsRepo, memRepo);
+                                                devMode, commsRepo, memRepo, roverStats);
         var settings_ = new Sections.SettingsSection(settings, account, registry);
         var comms     = new Sections.CommsSection(account, commsRepo, progress);
         var memory    = new Sections.MemorySection(account, memRepo, progress);
+        var upgrade   = new Sections.RoverUpgradeSection(roverStats, account, registry);
+        var diagnose  = new Sections.DiagnoseSection(account.Login, roverStats);
 
         _sections = new Dictionary<string, IBaseSection>
         {
@@ -48,6 +53,8 @@ public sealed class BaseScreen : IScreen
             [settings_.SectionId] = settings_,
             [comms.SectionId]     = comms,
             [memory.SectionId]    = memory,
+            [upgrade.SectionId]   = upgrade,
+            [diagnose.SectionId]  = diagnose,
         };
 
         _activeSection = hub;
@@ -66,6 +73,12 @@ public sealed class BaseScreen : IScreen
             response.SectionName is not null &&
             _sections.TryGetValue(response.SectionName, out var next))
         {
+            if (response.SectionName == SectionIds.Diag &&
+                next is Sections.DiagnoseSection diagnose)
+            {
+                diagnose.BeginScan(time.Total);
+            }
+
             _activeSection = next;
         }
         else if (response.Request == BaseSectionRequest.GoToHub)

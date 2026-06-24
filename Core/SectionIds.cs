@@ -9,4 +9,5 @@ public static class SectionIds
     public const string Memory   = "memory";
     public const string Mission  = "mission";
     public const string Diag     = "diag";
+    public const string Upgrade = "upgrade";
 }

@@ -13,6 +13,7 @@ public sealed class HubSection : IBaseSection
     private readonly bool _devMode;
     private readonly CommsRepository? _commsRepo;
     private readonly MemoryRepository? _memRepo;
+    private readonly RoverStats? _roverStats;
     private string _input = "";
     private string _message = "";
     private bool _messageIsError;
@@ -27,7 +28,9 @@ public sealed class HubSection : IBaseSection
         ("MISSION",    "Begin new mission",                  false),
         ("MEMORY",     "Memory management & save data",      false),
         ("COMMS",      "Correspondence & messages",           false),
+        ("UPGRADE",    "Upgrade rover systems",          false),
         ("DIAG",       "Rover diagnostics",                  false),
+        ("SHOWHP",     "Show rover current health",          false),
         ("LOGOUT",     "End session — return to login",      true),
         ("EXIT",       "Power down terminal",                true),
         ("/HELP",      "Show help panel",                    true),
@@ -41,18 +44,24 @@ public sealed class HubSection : IBaseSection
         ("GOTO",       "DEV: jump to section, GOTO COMMS",   true),
         ("RELOAD",     "DEV: re-read content YAML from disk", true),
         ("RESET",      "DEV: wipe DEV saves, back to SOL 1", true),
+        ("FUNDS",      "DEV: add funds to account", true),
+        ("DMG",        "DEV: damage rover, DMG / DMG 25",    true),
+        ("RESETHP",    "DEV: restore rover HP to maximum",   true),
+        ("RESETUPGRADE","DEV: reset rover upgrades",         true),
     ];
 
     private readonly (string Cmd, string Desc, bool IsSystem)[] _commands;
 
     public HubSection(OperatorAccount account, OperatorProgress progress, string? loadWarning = null,
-                      bool devMode = false, CommsRepository? commsRepo = null, MemoryRepository? memRepo = null)
+                      bool devMode = false, CommsRepository? commsRepo = null, MemoryRepository? memRepo = null,
+                      RoverStats? roverStats = null)
     {
         _account   = account;
         _progress  = progress;
         _devMode   = devMode;
         _commsRepo = commsRepo;
         _memRepo   = memRepo;
+        _roverStats = roverStats;
         _commands  = devMode ? [.. _baseCommands, .. _devCommands] : _baseCommands;
 
         // Save-integrity warnings surface here, in the system's own voice.
@@ -146,10 +155,35 @@ public sealed class HubSection : IBaseSection
             Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, SectionIds.Comms);
             return;
         }
+        if (cmd == "UPGRADE")
+        {
+            Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, SectionIds.Upgrade);
+            return;
+        }
+        
+        if (cmd == "DIAG")
+        {
+            Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, SectionIds.Diag);
+            return;
+        }
+
+        if (cmd == "SHOWHP")
+        {
+            if (_roverStats is null)
+            {
+                _message        = "ROVER HEALTH DATA UNAVAILABLE";
+                _messageIsError = true;
+                return;
+            }
+
+            _message        = $"ROVER HP: {_roverStats.CurrentHealth}/{_roverStats.MaxHealth}";
+            _messageIsError = false;
+            return;
+        }
 
         // These modules are designed but not built yet — fail in-fiction
         // instead of silently swallowing an advertised command.
-        if (cmd == "MISSION" || cmd == "DIAG")
+        if (cmd == "MISSION")
         {
             _message        = "MODULE OFFLINE — AWAITING SUIRDC PROVISIONING";
             _messageIsError = true;
@@ -194,13 +228,13 @@ public sealed class HubSection : IBaseSection
         {
             string target = cmd.Length > 4 ? cmd[5..].Trim().ToLowerInvariant() : "";
 
-            if (target is SectionIds.Comms or SectionIds.Memory or SectionIds.Settings)
+            if (target is SectionIds.Comms or SectionIds.Memory or SectionIds.Settings or SectionIds.Upgrade)
             {
                 Response = new BaseSectionResponse(BaseSectionRequest.GoToSection, target);
                 return true;
             }
 
-            _message        = "Usage: GOTO COMMS | MEMORY | SETTINGS";
+            _message        = "Usage: GOTO COMMS | MEMORY | SETTINGS | UPGRADE";
             _messageIsError = true;
             return true;
         }
@@ -228,6 +262,91 @@ public sealed class HubSection : IBaseSection
             _commsRepo?.Load(_account.Login);
             _memRepo?.Load(_account.Login);
             _message        = "[DEV] DEV save data wiped — back to SOL 001";
+            _messageIsError = false;
+            return true;
+        }
+
+        if (cmd == "FUNDS" || cmd.StartsWith("FUNDS "))
+        {
+            string arg = cmd.Length > 5 ? cmd[6..].Trim() : "";
+            if (int.TryParse(arg, out int amount))
+            {
+                _account.Funds += amount;
+                _message        = $"[DEV] Added {amount} funds to account";
+                _messageIsError = false;
+            }
+            else
+            {
+                _message        = "Usage: Funds 1000";
+                _messageIsError = true;
+            }
+
+            return true;
+        }
+
+        if (cmd == "DMG" || cmd.StartsWith("DMG "))
+        {
+            if (_roverStats is null)
+            {
+                _message        = "[DEV] Rover stats unavailable";
+                _messageIsError = true;
+                return true;
+            }
+
+            string arg = cmd.Length > 3 ? cmd[4..].Trim() : "";
+            int amount = 10;
+
+            if (arg.Length > 0 && !int.TryParse(arg, out amount))
+            {
+                _message        = "Usage: DMG  |  DMG 25";
+                _messageIsError = true;
+                return true;
+            }
+
+            if (amount < 0)
+            {
+                _message        = "Damage must be zero or greater";
+                _messageIsError = true;
+                return true;
+            }
+
+            _roverStats.CurrentHealth = Math.Max(0, _roverStats.CurrentHealth - amount);
+            _roverStats.Save();
+            _message        = $"[DEV] Rover damaged by {amount} — HP {_roverStats.CurrentHealth}/{_roverStats.MaxHealth}";
+            _messageIsError = false;
+            return true;
+        }
+
+        if (cmd == "RESETHP")
+        {
+            if (_roverStats is null)
+            {
+                _message        = "[DEV] Rover stats unavailable";
+                _messageIsError = true;
+                return true;
+            }
+
+            _roverStats.CurrentHealth = _roverStats.MaxHealth;
+            _roverStats.ProcessedDamageThresholds = 0;
+            _roverStats.Save();
+            _message        = $"[DEV] Rover HP restored — HP {_roverStats.CurrentHealth}/{_roverStats.MaxHealth}";
+            _messageIsError = false;
+            return true;
+        }
+
+        if (cmd == "RESETUPGRADE")
+        {
+            if (_roverStats is null)
+            {
+                _message        = "[DEV] Rover stats unavailable";
+                _messageIsError = true;
+                return true;
+            }
+
+            _roverStats.ResetUpgradesToDefaults();
+            _roverStats.ProcessedDamageThresholds = RoverElectronicsFailureChooser.GetDamageThresholdCount(_roverStats);
+            _roverStats.Save();
+            _message        = "[DEV] Rover upgrades reset to defaults";
             _messageIsError = false;
             return true;
         }
