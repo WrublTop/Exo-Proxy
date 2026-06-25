@@ -196,9 +196,12 @@ public sealed class LoginPhase : IBootPhase
         if (_registry.LoginExists(_input))
         {
             var acc = _registry.Accounts.First(a => a.Login == _input.ToUpper());
-            return acc.Status == OperatorStatus.Redacted
-                ? "Operator data redacted — access unavailable"
-                : "Existing operator — ENTER to continue";
+            return acc.Status switch
+            {
+                OperatorStatus.Redacted   => "Operator data redacted — access unavailable",
+                OperatorStatus.Terminated => "Operator terminated — access revoked",
+                _                         => "Existing operator — ENTER to continue",
+            };
         }
 
         return _registry.Accounts.Count < MaxSlots
@@ -242,6 +245,12 @@ public sealed class LoginPhase : IBootPhase
                     if (acc.Status == OperatorStatus.Redacted)
                     {
                         _message        = "Operator data redacted. Access unavailable.";
+                        _messageIsError = true;
+                        return;
+                    }
+                    if (acc.Status == OperatorStatus.Terminated)
+                    {
+                        _message        = "Operator terminated. Access revoked.";
                         _messageIsError = true;
                         return;
                     }

@@ -5,11 +5,13 @@ using ExoProxy.Presentation.Screens.Base;
 using ExoProxy.Presentation.Screens.Boot;
 using System.Threading.Channels;
 
-// The game is designed for a fixed 120×30 canvas — fits 1080p fullscreen with
-// a comfortable font size. The buffer is created at this size regardless of
-// the launch window — GameLoop's mismatch screen enforces it.
-const int TerminalWidth = 120;
-const int TerminalHeight = 30;
+// Fixed canvas, centred in the terminal. Bump these to fill more of a 1080p
+// fullscreen — less black border, a bigger map slice. Layouts are relative, so
+// they adapt. GameLoop shows a friendly "resize" screen when the window is
+// smaller than this, so a too-big value never garbles — it just asks for a
+// larger terminal (or a smaller font). Tune freely.
+const int TerminalWidth = 180;
+const int TerminalHeight = 40;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Console.CursorVisible = false;
@@ -47,12 +49,30 @@ try
                 await screenManager.SetActiveAsync(bootScreen, cts.Token);
                 await gameLoop.RunUntilAsync(() => bootScreen.IsBooted, cts.Token);
 
-                var progress = OperatorProgress.Load(bootScreen.LoggedInAccount!.Login);
-                var baseScreen = new BaseScreen(bootScreen.LoggedInAccount!, settings, progress,
+                var account  = bootScreen.LoggedInAccount!;
+                var progress = OperatorProgress.Load(account.Login);
+                var baseScreen = new BaseScreen(account, settings, progress,
                                                 bootScreen.Registry, bootScreen.IsDevLogin);
                 await screenManager.SetActiveAsync(baseScreen, cts.Token);
                 await gameLoop.RunUntilAsync(
-                    () => baseScreen.LogoutRequested || baseScreen.ExitRequested, cts.Token);
+                    () => baseScreen.LogoutRequested || baseScreen.ExitRequested
+                          || baseScreen.PerishRequested, cts.Token);
+
+                if (baseScreen.PerishRequested)
+                {
+                    // Permadeath. The run's saves are wiped either way. A real
+                    // operator is also marked terminated so the login can never be
+                    // re-entered; DEV isn't in the registry, so its wipe is just a
+                    // reset and it can log straight back in fresh.
+                    OperatorSaves.Wipe(account.Login);
+                    var registered = bootScreen.Registry.Accounts
+                        .FirstOrDefault(a => a.Login == account.Login);
+                    if (registered is not null)
+                    {
+                        registered.Status = OperatorStatus.Terminated;
+                        bootScreen.Registry.Save();
+                    }
+                }
 
                 if (baseScreen.ExitRequested) break;
             }
