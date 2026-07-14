@@ -11,6 +11,7 @@ public sealed class SettingsSection : IBaseSection
     private readonly GameSettings _settings;
     private readonly OperatorAccount _account;
     private readonly OperatorRegistry _registry;
+    private readonly IAudioService _audio;
 
     private enum Mode { Browse, NewPassword, ConfirmPassword, ConfirmReset }
     private Mode _mode = Mode.Browse;
@@ -29,7 +30,7 @@ public sealed class SettingsSection : IBaseSection
     {
         public string Label       { get; init; } = "";
         public bool IsHeader      { get; init; }
-        public bool IsPlaceholder { get; init; }
+        public bool IsSlider      { get; init; }
         public bool IsAction      { get; init; }
         public bool IsBoolean     { get; init; }
         public string[]? Values   { get; init; }
@@ -41,11 +42,12 @@ public sealed class SettingsSection : IBaseSection
     private readonly List<int> _selectableIndices;
     private int _selectedNavIndex;
 
-    public SettingsSection(GameSettings settings, OperatorAccount account, OperatorRegistry registry)
+    public SettingsSection(GameSettings settings, OperatorAccount account, OperatorRegistry registry, IAudioService audio)
     {
         _settings   = settings;
         _account    = account;
         _registry   = registry;
+        _audio      = audio;
 
         _items = BuildItems();
         _selectableIndices = _items
@@ -68,10 +70,10 @@ public sealed class SettingsSection : IBaseSection
         return
         [
             new() { Label = "AUDIO",          IsHeader = true },
-            new() { Label = "Main volume",    IsPlaceholder = true },
-            new() { Label = "Music volume",   IsPlaceholder = true },
-            new() { Label = "Effects volume", IsPlaceholder = true },
-            new() { Label = "Ambient volume", IsPlaceholder = true },
+            new() { Label = "Main volume",    IsSlider = true, ValueIndex = Math.Clamp(_settings.MainVolume,    0, 10), Key = "vol_main" },
+            new() { Label = "Music volume",   IsSlider = true, ValueIndex = Math.Clamp(_settings.MusicVolume,   0, 10), Key = "vol_music" },
+            new() { Label = "Effects volume", IsSlider = true, ValueIndex = Math.Clamp(_settings.EffectsVolume, 0, 10), Key = "vol_effects" },
+            new() { Label = "Ambient volume", IsSlider = true, ValueIndex = Math.Clamp(_settings.AmbientVolume, 0, 10), Key = "vol_ambient" },
             new() { Label = "",               IsHeader = true },
             new() { Label = "DISPLAY",        IsHeader = true },
             new() { Label = "Theme",              Values = themes,    ValueIndex = Idx(themes,    _settings.Theme),           Key = "theme" },
@@ -133,16 +135,21 @@ public sealed class SettingsSection : IBaseSection
 
         var item = SelectedItem;
 
-        if ((key.Key == ConsoleKey.LeftArrow || key.Key == ConsoleKey.RightArrow) && !item.IsPlaceholder)
+        if (key.Key == ConsoleKey.LeftArrow || key.Key == ConsoleKey.RightArrow)
         {
-            if (item.IsBoolean)
+            int dir = key.Key == ConsoleKey.RightArrow ? 1 : -1;
+            if (item.IsSlider)
+            {
+                item.ValueIndex = Math.Clamp(item.ValueIndex + dir, 0, 10);
+                ApplySetting(item);
+            }
+            else if (item.IsBoolean)
             {
                 item.ValueIndex = item.ValueIndex == 0 ? 1 : 0;
                 ApplySetting(item);
             }
             else if (item.Values is not null)
             {
-                int dir = key.Key == ConsoleKey.RightArrow ? 1 : -1;
                 item.ValueIndex = (item.ValueIndex + dir + item.Values.Length) % item.Values.Length;
                 ApplySetting(item);
             }
@@ -225,6 +232,21 @@ public sealed class SettingsSection : IBaseSection
 
     private void ApplySetting(Item item)
     {
+        if (item.IsSlider)
+        {
+            switch (item.Key)
+            {
+                case "vol_main":    _settings.MainVolume    = item.ValueIndex; break;
+                case "vol_music":   _settings.MusicVolume   = item.ValueIndex; break;
+                case "vol_effects": _settings.EffectsVolume = item.ValueIndex; break;
+                case "vol_ambient": _settings.AmbientVolume = item.ValueIndex; break;
+            }
+            _audio.ApplyVolumes(_settings.MainVolume, _settings.MusicVolume,
+                                _settings.EffectsVolume, _settings.AmbientVolume);
+            _settings.Save();
+            return;
+        }
+
         string val = item.IsBoolean
             ? (item.ValueIndex == 0 ? "ON" : "OFF")
             : item.Values![item.ValueIndex];
@@ -296,10 +318,14 @@ public sealed class SettingsSection : IBaseSection
             buffer.WriteAt(left + 4, row, item.Label, labelColor);
 
             // value rendering
-            if (item.IsPlaceholder)
+            if (item.IsSlider)
             {
-                const string bar = "[────────────────]  N/A";
-                buffer.WriteAt(left + BoxInner - bar.Length, row, bar, ExoColors.ProksDark);
+                int v = Math.Clamp(item.ValueIndex, 0, 10);
+                string filledColor = sel ? ExoColors.PhosphorText : ExoColors.ProksText;
+                int valX = left + BoxInner - 13;   // 10 cells + space + 2-digit value
+                buffer.WriteAt(valX,      row, new string('■', v),      filledColor);
+                buffer.WriteAt(valX + v,  row, new string('□', 10 - v), ExoColors.ProksDark);
+                buffer.WriteAt(valX + 11, row, v.ToString().PadLeft(2), ExoColors.ProksPale);
             }
             else if (item.IsBoolean)
             {

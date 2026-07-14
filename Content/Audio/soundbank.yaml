@@ -1,0 +1,128 @@
+﻿# ════════════════════════════════════════════════════════════════════════════
+#                        EXO PROXY — SOUND BANK   
+# ════════════════════════════════════════════════════════════════════════════
+#  The game fires named EVENTS. This file says what each one sounds like.
+#  Edit freely — no recompiling. In DEV: type  RELOAD  to apply live, and
+#  SFX <name>  to audition (e.g.  SFX command.error ,  SFX music.score ).
+#
+#  ONE rule to understand everything: every entry is exactly ONE kind of sound,
+#  decided by which field it has —
+#     use:        another-entry        → behave like it (share a sound; see below)
+#     tones:      [ {freq, ms}, ... ]  → PC-speaker bleep (no file needed, freq 0 = rest)
+#     file:       sfx/x.wav            → a sample   (+ optional duration / loops / fades)
+#     variations: [a.wav, b.wav]       → a sample, random pick each play
+#     playlist:   [music/a.mp3, ...]   → shuffled music
+#     loop: true  (with file)          → seamless ambient bed (crossfades)
+#     {}                               → silence
+#  Other knobs:  channel (effects|music|ambient), volume 0-10, fade_in, fade_out,
+#                duration (sec), loops (N), min_interval (anti-spam sec), shuffle, gap.
+#
+#  ASSIGN SOUND TO AN ACTION, NOT TO EACH EVENT:
+#     define a sound ONCE under SOUNDS, then every event just  use:  it. Change the
+#     sound in one place → it updates everywhere. Break one event out by giving it its
+#     own field instead of a use:.   Missing/unknown/blank = silence, never a crash.
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── SOUNDS ─ define each sound once (events point here) ───────────────────────
+# Retro bleeps (work even with no sound card). Swap any to a file anytime, e.g.
+#   ui.click: { file: sfx/key.wav, volume: 3, min_interval: 0.03 }
+ui.click:                          # every keypress — a random one of the 12 key samples
+  volume: 1
+  min_interval: 0.05
+  variations:
+    - "sfx/Keyboard Single Key 1.wav"
+    - "sfx/Keyboard Single Key 2.wav"
+    - "sfx/Keyboard Single Key 3.wav"
+    - "sfx/Keyboard Single Key 4.wav"
+    - "sfx/Keyboard Single Key 5.wav"
+    - "sfx/Keyboard Single Key 6.wav"
+    - "sfx/Keyboard Single Key 7.wav"
+    - "sfx/Keyboard Single Key 8.wav"
+    - "sfx/Keyboard Single Key 9.wav"
+    - "sfx/Keyboard Single Key 10.wav"
+    - "sfx/Keyboard Single Key 11.wav"
+    - "sfx/Keyboard Single Key 12.wav"
+ui.select:   { tones: [ {freq: 1500, ms: 22} ] }
+ui.confirm:  { tones: [ {freq: 880, ms: 45}, {freq: 1320, ms: 70} ] }
+ui.error:    { tones: [ {freq: 420, ms: 70}, {freq: 220, ms: 130} ] }
+ui.blip:     { tones: [ {freq: 2000, ms: 35} ] }
+ui.alert:    { tones: [ {freq: 1568, ms: 90}, {freq: 0, ms: 60}, {freq: 1568, ms: 90} ] }
+ui.transfer: { tones: [ {freq: 700, ms: 40}, {freq: 1000, ms: 40}, {freq: 1400, ms: 40}, {freq: 1900, ms: 70} ] }
+sfx.dock:    { tones: [ {freq: 600, ms: 90}, {freq: 300, ms: 120} ] }
+sfx.impact:  { tones: [ {freq: 160, ms: 200} ] }
+
+# Boot ceremony bleeps (the boot code plays these by name).
+boot.post:         { tones: [ {freq: 880, ms: 170} ] }
+boot.carrier_lock: { tones: [ {freq: 1568, ms: 260} ] }
+boot.handshake:    # dial-up warble: dial tone → DTMF → answer tone → carrier negotiation
+  tones:
+    - {freq: 425,  ms: 220}
+    - {freq: 1209, ms: 90}
+    - {freq: 1336, ms: 90}
+    - {freq: 941,  ms: 90}
+    - {freq: 1477, ms: 90}
+    - {freq: 1209, ms: 90}
+    - {freq: 2100, ms: 240}
+    - {freq: 1200, ms: 110}
+    - {freq: 2400, ms: 110}
+    - {freq: 1200, ms: 110}
+    - {freq: 2400, ms: 110}
+    - {freq: 1800, ms: 110}
+
+# A full sampled example (uncomment when you have the file):
+#   qlink.scan: { file: sfx/scanner_loop.wav, duration: 5.0, fade_out: 0.3 }
+
+# ── EVENTS ─ the hooks the game fires (point each at a SOUND) ─────────────────
+# UI / global
+key.press:       { use: ui.click }
+command.accept:  { use: ui.confirm }
+command.error:   { use: ui.error }
+section.enter:   { use: ui.select }
+section.back:    { use: ui.select }
+# COMMS
+comms.new_message: { use: ui.blip }
+comms.open_thread: { use: ui.select }
+comms.send:        { use: ui.transfer }
+# MEMORY
+memory.tape_load:   { use: ui.confirm }
+memory.file_select: { use: ui.select }
+memory.send:        { use: ui.transfer }  # move/sync between tapes — same "transfer" voice
+memory.delete:      { use: ui.error }
+memory.defrag:      {}                  # left blank — wants its own sampled texture
+# MISSION / rover
+rover.uplink:         { use: ui.transfer }
+rover.move_step:      {}                  # left blank — a subtle per-tile tick later
+rover.dock:           { use: sfx.dock }
+rover.hull_impact:    { use: sfx.impact }
+rover.scan_confirmed: { use: ui.confirm } # swap to its own discovery sound later
+rover.sensor_on:      { use: ui.confirm }
+rover.sensor_off:     { use: ui.select }
+rover.boundary:       { use: ui.error }
+rover.low_power:      { use: ui.alert }
+
+# ── AMBIENT BEDS — always on, LAYERED (start at power-on, never stop) ─────────
+# These two play at the same time, continuously, under everything. Per-sound `volume`
+# sets the BALANCE between them; the AUDIO → Ambient slider sets the overall level.
+ambient.fans: { file: ambient/AMB_ComputerFans_02_SDLX.wav,              channel: ambient, loop: true, volume: 5, fade_in: 3 }
+ambient.room: { file: ambient/AMB_EerieAmbientRoomBreathing_05_SDLX.wav, channel: ambient, loop: true, volume: 7, fade_in: 3 }
+
+# Heavy-task "thinking" hum — turned on while the machine works (boot handshake),
+# then off when it settles. Start/stop it from code with Play/StopLoop.
+computer.thinking: { file: "ambient/Computer Fan Loop.wav", channel: ambient, loop: true, volume: 5, fade_in: 0.8, fade_out: 1.2 }
+
+# Power-on surge — first 10s of FAN_LARGE, fading down into the beds underneath.
+power.on: { file: ambient/FAN_LARGE.wav, channel: ambient, duration: 8, fade_out: 6, volume: 6 }
+
+# ── AMBIENT (context bed — optional, swaps hub ↔ field; silent until you add files)
+hub.ambient:     { channel: ambient, loop: true }   # base/hub-only bed
+mission.ambient: { channel: ambient, loop: true }   # field-only bed
+
+# ── MUSIC (shuffle playlist, starts after boot) ───────────────────────────────
+# Add tracks (files in Content/Audio/music/); they shuffle with a 3s gap. Empty = silent.
+music.score:
+  channel: music
+  playlist: []
+  shuffle: true
+  gap: 3
+  fade_in: 1.5
+  fade_out: 1.5

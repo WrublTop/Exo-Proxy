@@ -19,6 +19,7 @@ public sealed class MissionSection : IBaseSection
     private readonly OperatorProgress _progress;
     private readonly MissionWorld _world;
     private readonly bool _isDev;     // dev mode unlocks the whole-map overview zoom
+    private readonly IAudioService _audio;
 
     private string _input = "";
     private BlinkState _blink;
@@ -77,11 +78,12 @@ public sealed class MissionSection : IBaseSection
 
     private readonly List<(string Text, string Color)> _log = [];
 
-    public MissionSection(OperatorProgress progress, MissionWorld world, bool devMode)
+    public MissionSection(OperatorProgress progress, MissionWorld world, bool devMode, IAudioService audio)
     {
         _progress = progress;
         _world    = world;
         _isDev    = devMode;
+        _audio    = audio;
         Log("SR-74 FIELD LINK ESTABLISHED", ExoColors.SignalDim);
         Log("SR MOVE N|S|E|W [1-99]", ExoColors.ProksText);
         Log("SR MARK <NAME> | SR MARKS", ExoColors.ProksText);
@@ -271,10 +273,12 @@ public sealed class MissionSection : IBaseSection
         {
             case "MASS":
                 _massActive = true;
+                _audio.Play("rover.sensor_on");
                 Log("SENSOR: MASS ONLINE — TOPOGRAPHY", ExoColors.SignalDim);
                 break;
             case "OFF":
                 _massActive = false;
+                _audio.Play("rover.sensor_off");
                 Log("SENSOR OFFLINE", ExoColors.ProksText);
                 break;
             case "THERMAL" or "EM":
@@ -315,6 +319,7 @@ public sealed class MissionSection : IBaseSection
         _pendingMark    = name;
         _phaseElapsedMs = 0;
         _state          = LinkState.Transmitting;
+        _audio.Play("rover.uplink");
     }
 
     // Reading your own annotations is local — no uplink round-trip.
@@ -359,6 +364,7 @@ public sealed class MissionSection : IBaseSection
         _stepsMoved     = 0;
         _phaseElapsedMs = 0;
         _state          = LinkState.Transmitting;
+        _audio.Play("rover.uplink");
     }
 
     // One physical cell of travel. The map and POS header update live —
@@ -380,7 +386,10 @@ public sealed class MissionSection : IBaseSection
         {
             _state = LinkState.Idle;
             if (_world.Charge < MissionWorld.BaseMoveCost)
+            {
+                _audio.Play("rover.low_power");
                 Disable("POWER DEPLETED — SR-74 STRANDED IN FIELD");
+            }
             else
             {
                 Log("INSUFFICIENT POWER FOR GRADE — SR-74 HOLDS", ExoColors.FaultText);
@@ -395,6 +404,7 @@ public sealed class MissionSection : IBaseSection
         if (_world.Move(_pendingDir, 1) == 0)
         {
             _state = LinkState.Idle;
+            _audio.Play("rover.boundary");
             Log(_stepsMoved == 0
                     ? "SURVEY BOUNDARY — SR-74 HOLDS"
                     : $"SURVEY BOUNDARY — MOVED {_stepsMoved}U {_pendingDir.Letter()}",
@@ -413,6 +423,7 @@ public sealed class MissionSection : IBaseSection
         if (_world.IsOnHazard && !wasOnHazard)
         {
             _world.Damage(MissionWorld.ImpactDamage);
+            _audio.Play("rover.hull_impact");
             _state = LinkState.Idle;
             if (_world.IsDestroyed)
                 Disable("HULL FAILURE — SR-74 DESTROYED");

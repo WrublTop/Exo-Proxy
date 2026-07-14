@@ -10,6 +10,7 @@ public sealed class BootScreen : IScreen
     private readonly List<IBootPhase> _phases;
     private int _currentPhase;
     private readonly OperatorRegistry _registry;
+    private readonly IAudioService _audio;
 
     public OperatorAccount? LoggedInAccount =>
         (_phases.OfType<LoginPhase>().FirstOrDefault())?.LoggedInAccount;
@@ -21,8 +22,9 @@ public sealed class BootScreen : IScreen
 
     public OperatorRegistry Registry => _registry;
 
-    public BootScreen()
+    public BootScreen(IAudioService audio)
     {
+        _audio = audio;
         _registry = new OperatorRegistry();
         _registry.Load();
 
@@ -30,11 +32,18 @@ public sealed class BootScreen : IScreen
         _phases =
         [
             new CrtWarmupPhase(),
-            new BiosHeaderPhase(),
+            new BiosHeaderPhase(audio),
             loginPhase,
-            new QlinkHandshakePhase(loginPhase),
+            new QlinkHandshakePhase(loginPhase, audio),
         ];
         _currentPhase = 0;
+
+        // The terminal powers on: a one-shot fan surge plays over the first seconds while
+        // the two always-on ambient beds swell in underneath it, then it fades into them.
+        // Beds are idempotent, so a re-boot after logout just keeps them running.
+        audio.Play("power.on");
+        audio.Play("ambient.fans");
+        audio.Play("ambient.room");
     }
 
     public Task OnEnterAsync(CancellationToken ct) => Task.CompletedTask;
@@ -42,6 +51,8 @@ public sealed class BootScreen : IScreen
 
     public void Update(GameTime time, InputEvent? input)
     {
+        _audio.Update(time.Delta.TotalSeconds);   // drive fade-out cleanup during boot too
+
         if (_currentPhase >= _phases.Count) return;
 
         var phase = _phases[_currentPhase];

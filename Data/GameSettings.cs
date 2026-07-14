@@ -26,6 +26,13 @@ public class GameSettings
     public string Language        { get; set; } = "ENGLISH"; // TODO: unwired — requires a string table before wiring
     public string TypewriterSpeed { get; set; } = "NORMAL";  // TODO: unwired — no consumer yet
 
+    // Audio volumes, 0–10 (matches the ■/□ slider scale used elsewhere in Settings).
+    // Master scales the other three. Wired → AudioEngine.ApplyVolumes.
+    public int MainVolume    { get; set; } = 7;
+    public int MusicVolume   { get; set; } = 7;
+    public int EffectsVolume { get; set; } = 7;
+    public int AmbientVolume { get; set; } = 7;
+
     public static GameSettings Load()
     {
         if (!File.Exists(_savePath)) return new GameSettings();
