@@ -11,6 +11,7 @@ public sealed class HubSection : IBaseSection
 
     private readonly OperatorAccount _account;
     private readonly OperatorProgress _progress;
+    private readonly IAudioService _audio;
     private readonly bool _devMode;
     private readonly CommsRepository? _commsRepo;
     private readonly MemoryRepository? _memRepo;
@@ -49,7 +50,8 @@ public sealed class HubSection : IBaseSection
     [
         ("SOL",        "DEV: SOL 5 / SOL +1 / SOL -1",       true),
         ("GOTO",       "DEV: jump to section, GOTO COMMS",   true),
-        ("RELOAD",     "DEV: re-read content YAML from disk", true),
+        ("RELOAD",     "DEV: re-read content YAML + sound bank", true),
+        ("SFX",        "DEV: audition a sound, SFX rover.dock", true),
         ("RESET",      "DEV: wipe DEV saves, back to SOL 1", true),
         ("FUNDS",      "DEV: add funds to account", true),
         ("DMG",        "DEV: damage rover, DMG / DMG 25",    true),
@@ -59,12 +61,13 @@ public sealed class HubSection : IBaseSection
 
     private readonly (string Cmd, string Desc, bool IsSystem)[] _commands;
 
-    public HubSection(OperatorAccount account, OperatorProgress progress, string? loadWarning = null,
-                      bool devMode = false, CommsRepository? commsRepo = null, MemoryRepository? memRepo = null,
-                      RoverStats? roverStats = null, MissionWorld? world = null)
+    public HubSection(OperatorAccount account, OperatorProgress progress, IAudioService audio,
+                      string? loadWarning = null, bool devMode = false, CommsRepository? commsRepo = null,
+                      MemoryRepository? memRepo = null, RoverStats? roverStats = null, MissionWorld? world = null)
     {
         _account   = account;
         _progress  = progress;
+        _audio     = audio;
         _devMode   = devMode;
         _commsRepo = commsRepo;
         _memRepo   = memRepo;
@@ -129,10 +132,11 @@ public sealed class HubSection : IBaseSection
             return;
         }
 
-        if (key.KeyChar != '\0' && _input.Length < 16)
+        if (key.KeyChar != '\0' && _input.Length < 48)
         {
             _input   += char.ToUpper(key.KeyChar);
             _message  = "";
+            // Keypress click is fired globally by the game loop, not here.
         }
     }
 
@@ -201,6 +205,7 @@ public sealed class HubSection : IBaseSection
                 return;
             }
 
+            _audio.Play("command.accept");
             _message        = $"ROVER HP: {_roverStats.CurrentHealth}/{_roverStats.MaxHealth}";
             _messageIsError = false;
             return;
@@ -222,6 +227,7 @@ public sealed class HubSection : IBaseSection
         _message        = $"Unknown command: {cmd}";
         _messageIsError = true;
         _helpVisible    = false;
+        _audio.Play("command.error");
     }
 
     // Testing commands available only when logged in as DEV. Returns true
@@ -276,7 +282,23 @@ public sealed class HubSection : IBaseSection
             // state files are re-read too, but those rarely change on disk.
             _commsRepo?.Load(_account.Login);
             _memRepo?.Load(_account.Login);
-            _message        = "[DEV] Content files reloaded from disk";
+            _audio.Reload();
+            _message        = "[DEV] Content + sound bank reloaded from disk";
+            _messageIsError = false;
+            return true;
+        }
+
+        if (cmd == "SFX" || cmd.StartsWith("SFX "))
+        {
+            string arg = cmd.Length > 3 ? cmd[4..].Trim() : "";
+            if (arg.Length == 0)
+            {
+                _message        = "Usage: SFX rover.dock";
+                _messageIsError = true;
+                return true;
+            }
+            _audio.Play(arg);   // soundbank lookup is case-insensitive
+            _message        = $"[DEV] SFX -> {arg}";
             _messageIsError = false;
             return true;
         }

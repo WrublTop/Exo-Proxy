@@ -14,6 +14,7 @@ public sealed class CommsSection : IBaseSection
     private readonly CommsRepository  _repo;
     private readonly OperatorAccount  _account;
     private readonly OperatorProgress _progress;
+    private readonly IAudioService    _audio;
 
     // ── inbox ─────────────────────────────────────────────────────────────────
     private List<CommsMessage> _inbox      = [];
@@ -57,11 +58,12 @@ public sealed class CommsSection : IBaseSection
     private const int LeftI  = LeftW - 2;   // 42
     private const int Gap    = 2;
 
-    public CommsSection(OperatorAccount account, CommsRepository repo, OperatorProgress progress)
+    public CommsSection(OperatorAccount account, CommsRepository repo, OperatorProgress progress, IAudioService audio)
     {
         _account  = account;
         _repo     = repo;
         _progress = progress;
+        _audio    = audio;
         _inbox    = _repo.GetInbox(_progress.Sol);
     }
 
@@ -101,7 +103,7 @@ public sealed class CommsSection : IBaseSection
         }
         if (key.Key == ConsoleKey.UpArrow   && _listIndex > 0)                { _listIndex--; return; }
         if (key.Key == ConsoleKey.DownArrow && _listIndex < _inbox.Count - 1) { _listIndex++; return; }
-        if (key.Key == ConsoleKey.Enter     && _inbox.Count > 0)              OpenMessage(_inbox[_listIndex]);
+        if (key.Key == ConsoleKey.Enter     && _inbox.Count > 0)              { _audio.Play("comms.open_thread"); OpenMessage(_inbox[_listIndex]); }
     }
 
     private void HandleReadKey(ConsoleKeyInfo key)
@@ -144,6 +146,7 @@ public sealed class CommsSection : IBaseSection
 
     private void BeginTransmit(ReplyOption option)
     {
+        _audio.Play("comms.send");
         _chosenOption   = option;
         _chosenForMsgId = _pendingMessageId;
         _txStartTime    = _now;

@@ -64,6 +64,7 @@ public sealed class BiosHeaderPhase : IBootPhase
     private const int DetectStartRow = 7;
     private const int DetectLabelWidth = 45;
 
+    private readonly IAudioService _audio;
     private readonly Random _rng;
     private int _detectIndex;
     private bool _detectResultShown;
@@ -80,8 +81,9 @@ public sealed class BiosHeaderPhase : IBootPhase
 
     public bool IsDone { get; private set; }
 
-    public BiosHeaderPhase()
+    public BiosHeaderPhase(IAudioService audio)
     {
+        _audio            = audio;
         _rng              = new Random();
         _detectIndex      = 0;
         _detectResultShown = false;
@@ -105,6 +107,7 @@ public sealed class BiosHeaderPhase : IBootPhase
             _detectLineStart = now;
             _blinkTimer      = now;
             _flickerTimer    = now;
+            _audio.Play("boot.post");   // single POST beep — "memory OK, all systems go"
         }
 
         if (input?.Key.Key == ConsoleKey.F4)

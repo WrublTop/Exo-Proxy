@@ -1,6 +1,7 @@
 ﻿using ExoProxy.Core;
 using ExoProxy.Data;
 using ExoProxy.Engine;
+using ExoProxy.Engine.Audio;
 using ExoProxy.Presentation.Screens.Base;
 using ExoProxy.Presentation.Screens.Boot;
 using System.Threading.Channels;
@@ -21,11 +22,25 @@ Console.CursorVisible = false;
 var settings = GameSettings.Load();
 ExoColors.Apply(settings.Theme, settings.Brightness);
 
+// Audio backend. Try the real engine; if anything about the device init explodes,
+// fall back to silence so the game still runs (the engine itself also degrades
+// gracefully on a missing device — this catch is the last-ditch safety net).
+IAudioService audio;
+try
+{
+    audio = new AudioEngine(settings.MainVolume, settings.MusicVolume,
+                            settings.EffectsVolume, settings.AmbientVolume);
+}
+catch
+{
+    audio = new NullAudioService();
+}
+
 var channel = Channel.CreateUnbounded<InputEvent>();
 using var cts = new CancellationTokenSource();
 var renderBuffer = new RenderBuffer(TerminalWidth, TerminalHeight);
 var screenManager = new ScreenManager();
-var gameLoop = new GameLoop(screenManager, renderBuffer, channel.Reader);
+var gameLoop = new GameLoop(screenManager, renderBuffer, channel.Reader, audio);
 var inputPoller = new InputPoller(channel.Writer);
 
 Console.Clear();
@@ -45,14 +60,14 @@ try
             // starts a fresh boot screen.
             while (true)
             {
-                var bootScreen = new BootScreen();
+                var bootScreen = new BootScreen(audio);
                 await screenManager.SetActiveAsync(bootScreen, cts.Token);
                 await gameLoop.RunUntilAsync(() => bootScreen.IsBooted, cts.Token);
 
                 var account  = bootScreen.LoggedInAccount!;
                 var progress = OperatorProgress.Load(account.Login);
                 var baseScreen = new BaseScreen(account, settings, progress,
-                                                bootScreen.Registry, bootScreen.IsDevLogin);
+                                                bootScreen.Registry, audio, bootScreen.IsDevLogin);
                 await screenManager.SetActiveAsync(baseScreen, cts.Token);
                 await gameLoop.RunUntilAsync(
                     () => baseScreen.LogoutRequested || baseScreen.ExitRequested
@@ -98,6 +113,7 @@ finally
     Console.Write(ExoCodes.ShowCursor + ExoCodes.Reset);
     Console.CursorVisible = true;
     Console.Clear();
+    audio.Dispose();
 }
 
 if (fatal is not null)

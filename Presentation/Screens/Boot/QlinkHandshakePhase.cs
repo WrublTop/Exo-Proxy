@@ -5,6 +5,8 @@ namespace ExoProxy.Presentation.Screens.Boot;
 public sealed class QlinkHandshakePhase : IBootPhase
 {
     private readonly LoginPhase _loginPhase;
+    private readonly IAudioService _audio;
+    private bool _carrierBeeped;
 
     private record struct StreamEvent(int DelayMs, string Text, string Color, bool UpdateLast = false);
 
@@ -53,9 +55,10 @@ public sealed class QlinkHandshakePhase : IBootPhase
 
     public bool IsDone { get; private set; }
 
-    public QlinkHandshakePhase(LoginPhase loginPhase)
+    public QlinkHandshakePhase(LoginPhase loginPhase, IAudioService audio)
     {
         _loginPhase = loginPhase;
+        _audio      = audio;
         // Timers anchor on the first Update tick (see _eventsBuilt block).
     }
 
@@ -152,6 +155,7 @@ public sealed class QlinkHandshakePhase : IBootPhase
         {
             _eqPhase      = 2;
             _eqFlashTimer = now;
+            if (!_carrierBeeped) { _audio.Play("boot.carrier_lock"); _carrierBeeped = true; }  // carrier locked
             for (int i = 0; i < EqCols; i++)
             {
                 _eqHeights[i]  = EqMaxBar;
@@ -407,6 +411,7 @@ public sealed class QlinkHandshakePhase : IBootPhase
 
         if (input?.Key.Key == ConsoleKey.F4)
         {
+            _audio.StopLoop("computer.thinking");
             IsDone = true;
             return;
         }
@@ -425,6 +430,8 @@ public sealed class QlinkHandshakePhase : IBootPhase
             _phaseStartTime   = now;
             _blinkTimer       = now;
             _totalDurationMs  = _events.Sum(e => (double)e.DelayMs) + 1500.0;
+            _audio.Play("boot.handshake");       // modem warble as the uplink starts negotiating
+            _audio.Play("computer.thinking");    // heavy-task hum while the link negotiates
         }
 
         while (_eventIndex < _events.Count && now >= _nextEventTime)
@@ -456,6 +463,7 @@ public sealed class QlinkHandshakePhase : IBootPhase
 
         if (_eventIndex >= _events.Count && now >= _nextEventTime)
         {
+            _audio.StopLoop("computer.thinking");   // link established — machine settles
             _windingDown   = true;
             _windDownStart = now;
         }

@@ -12,6 +12,12 @@ public sealed class BaseScreen : IScreen
     private IBaseSection _activeSection;
     private readonly bool _devMode;
     private readonly OperatorProgress _progress;
+    private readonly IAudioService _audio;
+
+    // The ambient loop currently meant to be playing (base hum vs field bed). We
+    // only re-trigger when this actually changes, so bouncing between hub sections
+    // doesn't restart the loop.
+    private string _currentAmbient = "";
 
     // The mission world is owned here, not by MissionSection, so the rover's
     // charge keeps ticking up while the operator works the hub, and so its state
@@ -31,10 +37,11 @@ public sealed class BaseScreen : IScreen
 
     public BaseScreen(OperatorAccount account, GameSettings settings,
                       OperatorProgress progress, OperatorRegistry registry,
-                      bool devMode = false)
+                      IAudioService audio, bool devMode = false)
     {
         _devMode  = devMode;
         _progress = progress;
+        _audio    = audio;
 
         var commsRepo = new CommsRepository();
         commsRepo.Load(account.Login);
@@ -55,14 +62,14 @@ public sealed class BaseScreen : IScreen
                               ?? roverStats.LoadWarning
                               ?? missionRepo.LoadWarning;
 
-        var hub       = new Sections.HubSection(account, progress, loadWarning,
+        var hub       = new Sections.HubSection(account, progress, audio, loadWarning,
                                                 devMode, commsRepo, memRepo, roverStats, _world);
-        var settings_ = new Sections.SettingsSection(settings, account, registry);
-        var comms     = new Sections.CommsSection(account, commsRepo, progress);
-        var memory    = new Sections.MemorySection(account, memRepo, progress);
+        var settings_ = new Sections.SettingsSection(settings, account, registry, audio);
+        var comms     = new Sections.CommsSection(account, commsRepo, progress, audio);
+        var memory    = new Sections.MemorySection(account, memRepo, progress, audio);
         var upgrade   = new Sections.RoverUpgradeSection(roverStats, account, registry);
         var diagnose  = new Sections.DiagnoseSection(account.Login, roverStats);
-        var mission   = new Sections.Mission.MissionSection(progress, _world, devMode);
+        var mission   = new Sections.Mission.MissionSection(progress, _world, devMode, audio);
 
         _sections = new Dictionary<string, IBaseSection>
         {
@@ -78,6 +85,22 @@ public sealed class BaseScreen : IScreen
         // Resume where the operator actually was: docked → the hub; mid-field →
         // straight back into MISSION. Logging out never escapes the field.
         _activeSection = _world.IsDocked ? hub : (IBaseSection)mission;
+
+        _audio.Play("music.score");   // music begins once the boot ceremony is over
+        UpdateAmbient();              // start the right background loop for where we resumed
+    }
+
+    // Keep the ambient loop matched to context: the field has its own bed, every
+    // base section shares the hub hum. No-op until a file is assigned in the bank.
+    private void UpdateAmbient()
+    {
+        string want = _activeSection.SectionId == SectionIds.Mission
+            ? "mission.ambient"
+            : "hub.ambient";
+        if (want == _currentAmbient) return;
+        if (_currentAmbient.Length > 0) _audio.StopLoop(_currentAmbient);
+        _currentAmbient = want;
+        _audio.Play(want);
     }
 
     public Task OnEnterAsync(CancellationToken ct) => Task.CompletedTask;
@@ -85,6 +108,7 @@ public sealed class BaseScreen : IScreen
 
     public void Update(GameTime time, InputEvent? input)
     {
+        _audio.Update(time.Delta.TotalSeconds);   // drive music playlist + fade cleanup
         _activeSection.Update(time, input);
 
         // Recharge while docked anywhere in the base — the hub, comms, memory,
@@ -106,10 +130,12 @@ public sealed class BaseScreen : IScreen
             }
 
             _activeSection = next;
+            _audio.Play("section.enter");
         }
         else if (response.Request == BaseSectionRequest.GoToHub)
         {
             _activeSection = _sections[SectionIds.Hub];
+            _audio.Play("section.back");
         }
         else if (response.Request == BaseSectionRequest.Dock)
         {
@@ -119,6 +145,7 @@ public sealed class BaseScreen : IScreen
             _progress.Sol++;
             _progress.Save();
             _activeSection = _sections[SectionIds.Hub];
+            _audio.Play("rover.dock");
         }
         else if (response.Request == BaseSectionRequest.Perish)
         {
@@ -135,6 +162,8 @@ public sealed class BaseScreen : IScreen
             _world.Persist?.Invoke();
             ExitRequested = true;
         }
+
+        UpdateAmbient();   // swap the background loop if we changed context
     }
 
     public void Render(IRenderBuffer buffer)

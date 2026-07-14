@@ -18,6 +18,7 @@ public sealed class MemorySection : IBaseSection
     private readonly MemoryRepository _repo;
     private readonly OperatorAccount  _account;
     private readonly OperatorProgress _progress;
+    private readonly IAudioService    _audio;
 
     // ── tape panel ────────────────────────────────────────────────────────────
     private int _tapeIdx = 0;
@@ -73,11 +74,12 @@ public sealed class MemorySection : IBaseSection
     private const int BarWidth = 14;
     private const int LW       = 4;
 
-    public MemorySection(OperatorAccount account, MemoryRepository repo, OperatorProgress progress)
+    public MemorySection(OperatorAccount account, MemoryRepository repo, OperatorProgress progress, IAudioService audio)
     {
         _account  = account;
         _repo     = repo;
         _progress = progress;
+        _audio    = audio;
         RefreshFileList();
     }
 
@@ -159,6 +161,7 @@ public sealed class MemorySection : IBaseSection
                     ? "ARCHIVE EMPTY" : "NO RECORDS ON TAPE", false);
                 return;
             }
+            _audio.Play("memory.tape_load");
             _listIdx = 0;
             _state   = MemState.FileList;
             return;
@@ -222,6 +225,7 @@ public sealed class MemorySection : IBaseSection
                 return;
             }
 
+            _audio.Play("memory.send");
             _transferFileId   = file.Id;
             _transferDst      = _sendDst;
             _transferProgress = 0f;
@@ -248,6 +252,7 @@ public sealed class MemorySection : IBaseSection
                                                        : _repo.DeleteFromLocal(_deleteTarget.Id);
                 if (ok)
                 {
+                    _audio.Play("memory.delete");
                     ShowStatus($"{_deleteTarget.DisplayName} — DELETED", false);
                     RefreshFileList();
                     _listIdx = Math.Clamp(_listIdx, 0, Math.Max(0, _listFiles.Count - 1));

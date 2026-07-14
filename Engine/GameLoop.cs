@@ -8,6 +8,7 @@ public sealed class GameLoop
     private readonly ScreenManager _screenManager;
     private readonly IRenderBuffer _buffer;
     private readonly ChannelReader<InputEvent> _input;
+    private readonly IAudioService _audio;
     private readonly int _targetFps;
 
     private int  _lastW       = -1;
@@ -17,11 +18,12 @@ public sealed class GameLoop
     private int  _lastTermH   = -1;
 
     public GameLoop(ScreenManager screenManager, IRenderBuffer buffer, ChannelReader<InputEvent> input,
-                    int targetFps = 30)
+                    IAudioService audio, int targetFps = 30)
     {
         _screenManager = screenManager;
         _buffer        = buffer;
         _input         = input;
+        _audio         = audio;
         _targetFps     = targetFps;
     }
 
@@ -47,7 +49,12 @@ public sealed class GameLoop
                 _screenManager.Update(gt, null);
             else
                 foreach (var ev in events)
+                {
+                    // Every physical keypress clicks — anywhere in the game, boot included.
+                    // (Throttled by ui.click's min_interval so a held key can't machine-gun.)
+                    _audio.Play("key.press");
                     _screenManager.Update(gt, ev);
+                }
 
             RenderFrame();
 
