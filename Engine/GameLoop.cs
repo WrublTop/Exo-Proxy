@@ -38,6 +38,18 @@ public sealed class GameLoop
             var now   = DateTimeOffset.UtcNow;
             var delta = now - previous;
             previous  = now;
+
+            // Terminal too small → freeze the game: no update, no time advance,
+            // input discarded. Resumes exactly where it was once the window fits.
+            if (Console.WindowWidth < _buffer.Width || Console.WindowHeight < _buffer.Height)
+            {
+                while (_input.TryRead(out _)) { }
+                RenderFrame();
+                var idle = DateTimeOffset.UtcNow - now;
+                if (idle < frameTime) await Task.Delay(frameTime - idle, ct);
+                continue;
+            }
+
             totalTime += delta;
             var gt = new GameTime(totalTime, delta);
 

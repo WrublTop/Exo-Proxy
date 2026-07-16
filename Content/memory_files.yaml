@@ -1,78 +1,253 @@
-- id: em_burst_042
-  display_name: EM_BURST_042
-  type: BIN
-  blocks: 4
-  sol: SOL 001
-  description: RAW ELECTROMAGNETIC FIELD DATA
-  content: |
-    OFFSET    00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
-    ----------------------------------------------------------------
-    0x0000    46 72 65 71 20 73 63 61 6E 20 72 61 77 0A 00 FF
-    0x0010    A3 22 45 BC 00 12 34 56 78 9A BC DE F0 01 23 45
-    0x0020    67 89 AB CD EF 00 FF 00 FF 00 FF 12 34 56 78 9A
-    0x0030    BC DE F0 C4 A1 00 00 FF FF 00 00 AB CD 12 34 00
-    0x0040    00 00 00 FF A3 B2 C1 D0 E4 F5 06 17 28 39 4A 5B
-    0x0050    6C 7D 8E 9F A0 B1 C2 D3 E4 F5 06 17 28 39 00 00
-    0x0060    FF FF 00 00 AB CD EF 01 23 45 67 89 00 FF A3 22
+# ========================================================================
+# SR-74 ONBOARD MEMORY — FILE CATALOGUE
+# Pre-loaded rover data (garage diagnostics + intro log) followed by the
+# field-collectible files: EM signal captures and the two authored PRIME/RICH
+# proks seams. Generic proks assays are synthesised at extraction time by
+# ProxAssayGenerator and are NOT listed here.
+#
+# sync_value = hidden narrative worth if uploaded to SUIRDC (demo-scale).
+# ========================================================================
+
+# ---- PRE-LOADED ON THE ROVER (default memory, before the first mission) ----
 
 - id: field_log_003
   display_name: FIELD_LOG_003
   type: LOG
   blocks: 2
   sol: SOL 001
-  description: FIELD OPERATIONS LOG
+  sync_value: 5
+  description: FIELD OPERATIONS LOG — STAGING
   content: |
-    [SOL 001 / 14:22:07]  SR-74 DEPARTURE — STAGING AREA CLEAR
-    [SOL 001 / 14:35:51]  SENSOR ARRAY ONLINE — ALL SYSTEMS NOMINAL
-    [SOL 001 / 15:02:34]  WAYPOINT ALPHA REACHED — GRID 44.7N 122.3E
-    [SOL 001 / 15:18:09]  EM ANOMALY DETECTED — READINGS ELEVATED x3.4
-    [SOL 001 / 15:44:22]  ATMOSPHERIC SAMPLE INITIATED — ATM PROBE DEPLOYED
-    [SOL 001 / 16:01:55]  THERMAL SCAN SECTOR F7 — HEAT SOURCE CONFIRMED
-    [SOL 001 / 16:28:11]  CONTACT LOST WITH SECONDARY SENSOR — REROUTING
-    [SOL 001 / 16:44:03]  SECONDARY SENSOR RESTORED — CAUSE UNKNOWN
-    [SOL 001 / 17:02:30]  RETURN ROUTE PLOTTED — ETA STAGING AREA 18:15
-    [SOL 001 / 17:31:47]  POWER LEVELS NOMINAL — BATTERY AT 84%
-    [SOL 001 / 18:14:59]  STAGING AREA REACHED — SR-74 STANDBY MODE
+    [SOL 001 / 06:22:07]  SR-74 COLD-BOOT COMPLETE — CRADLE RELEASE ARMED
+    [SOL 001 / 06:35:51]  SENSOR ARRAY ONLINE — MASS / THERMAL / EM NOMINAL
+    [SOL 001 / 06:44:12]  SRC SAFETY FILTER ENGAGED — FEED LOCKED GRAYSCALE
+    [SOL 001 / 07:02:34]  CADRE LINK TO SUIRDC ORBIT — HANDSHAKE OK
+    [SOL 001 / 07:18:09]  DOCK LATCH HELD — AWAITING OPERATOR DEPARTURE
+    [SOL 001 / 07:31:47]  POWER CELL AT 100% — DRIVE TRAIN STANDBY
+    -- END OF PRE-SHIFT LOG --
 
-- id: chem_probe_atm
-  display_name: CHEM_PROBE_ATM
-  type: ATM
-  blocks: 2
-  sol: SOL 001
-  description: ATMOSPHERIC CHEMISTRY SAMPLE
-  content: |
-    SAMPLE POINT: GRID 44.7N 122.3E   ALTITUDE: 0.0m   DURATION: 4min
-    -----------------------------------------------------------------------
-    COMPONENT                 CONCENTRATION    BASELINE    DEVIATION
-    N2   (Nitrogen)               71.2 %        70.9 %      +0.3 %
-    CO2  (Carbon Dioxide)         24.8 %        22.7 %      +2.1 %  [!]
-    CH4  (Methane)                 2.1 %         1.3 %      +0.8 %
-    COMPOUND_A  [UNIDENTIFIED]     1.9 %          ---         N/A   [??]
-    H2O  (Water Vapor)             0.0 %         0.1 %      -0.1 %
-    -----------------------------------------------------------------------
-    NOTE: COMPOUND_A spectral profile does not match known database entries.
-    NOTE: Elevated CO2 consistent with subsurface thermal venting.
-
-- id: thermal_031
-  display_name: THERMAL_031
-  type: SCN
+- id: hng_seeker_hull_diag
+  display_name: HNG_DIAG_SEEKER_HULL
+  type: DIA
   blocks: 4
   sol: SOL 001
-  description: THERMAL SURFACE SCAN — SECTOR F7
+  sync_value: 30
+  description: GARAGE CRADLE DIAGNOSTIC — HULL
   content: |
-    SECTOR F7   32x8 RESOLUTION   TIMESTAMP: SOL001/16:01:55
+    AUTOMATED GARAGE CRADLE V2 — DIAGNOSTIC LIGHT-SCAN — ROVER 045
+    STATUS: SHIFT COMPLETED, MAINTENANCE COOLDOWN ACTIVE
+
+    [HULL STRUCTURAL RECONSTRUCTION EVALUATION]
+    - Front Deflector Plate (Titanium-G Alloy): 100.00% structural consistency.
+    - Discrepancy: live telemetry logged a 34.28% integrity collapse at
+      14:22:11 from a high-velocity impact with a quartz column. Hangar laser
+      grids detect NO physical damage, missing mass, or warped fasteners.
+
+    [METALLURGICAL REFRACTION SCAN]
+    - Micro-fissures in the shattered plates are completely filled with a
+      non-metallic, organic crystalline compound.
+    - The lattice interlocked with the metal atoms at a molecular level,
+      binding the armor back together.
+    - Composite density 12.441% higher than factory spec. Tensile strength
+      up 420 MPa. The damage did not disappear — the hull grew new skin.
+
+    [WARRANTY POLICY WARNING]
+    Non-standard alloy modification detected. Asset warranty voids if these
+    crystalline structures spread into the transmission housing or engine.
+
+- id: hng_power_drain_scan
+  display_name: HNG_POW_DRAIN
+  type: DIA
+  blocks: 3
+  sol: SOL 001
+  sync_value: 25
+  description: GARAGE CRADLE DIAGNOSTIC — POWER
+  content: |
+    GARAGE CONSOLE — BATTERY DISCHARGE LOG — ROVER 045
+    SESSION: POST-MISSION RECHARGE MODE // DC FAST-CHARGE SYNC
+
+    [POWER CELL REGULATORY INTEGRITY CHECK]
+    - Solid-State Capacity Remaining: 8.214%
+    - Average Traversal Discharge: 1.42 kW/min under normal operations.
+    - Anomalous Event: at 15:40:02, during resonance-beam activation, primary
+      cell draw dropped to 0.00 kW for exactly 45.12 seconds. The vehicle
+      moved and drilled WITHOUT drawing battery reserve.
+
+    [ENERGY RECOVERY ANALYSIS]
+    Auxiliary alternators registered no mechanical load or thermal spike. The
+    electronics were pulling an external static charge directly from the
+    mineral plains. The engine was feeding on the white landscape.
+
+# ---- EM SIGNAL CAPTURES (field-collectible, EM sensor) ----
+
+- id: em_capture_comm
+  display_name: EM_CAPTURE_COMM
+  type: SIG
+  blocks: 2
+  sol: SOL 001
+  sync_value: 10
+  description: SHORT-RANGE COMM CHANNEL — TWO-WAY, PARTIAL
+  content: |
+    ARCHIVAL EM RELAY — SIGNAL ORIGIN: SHORT-RANGE COMM CHANNEL, PAIRED DEVICES
+    RECOVERED TRANSMISSION BUFFER — TWO-WAY, PARTIAL
     -----------------------------------------------------------------------
-    . . . . . . . + + . . . . . . . . . . . . . . . . . . . . . . .
-    . . . . . + + # # + + . . . . . . . . . . . . . . . . . . . . .
-    . . . + + # # @ @ # # + . . . . . . . + . . . . . . . . . . . .
-    . . . . + # @ @ @ @ # + . . . . . + + # + . . . . . . . . . . .
-    . . . . . + # # @ # + + . . . . . . + + . . . . . . . . . . . .
-    . . . . . . + + # + . . . . . . . . . . . . . . . . . . . . . .
-    . . . . . . . + + . . . . . . . . . . . . . . . . . . . . . . .
-    . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+    R: crane's still fucking stuck on the X-axis, won't move an inch. told
+       maintenance twice
+    K: did you file the actual ticket or just yell at Dobrescu like always
+    R: filing IS yelling at Dobrescu!!!
+    K: fair
+    R: you comin to the lil party thingy tonight or you doin another dry
+       spell for the year
+    K: stfu lol
+    R: I'm serious, you've skipped like three of these
+    K: I'm FINE!!! actually better than fine, dunno why everyone's acting
+       like I owe them a mood report
+    R: nobody said owe, you just look kind of
+    K: kind of what
+    R: like you stopped giving a shit
+    K: lol maybe I have. whatever, see ya
+
+- id: em_capture_relay
+  display_name: EM_CAPTURE_RELAY
+  type: SIG
+  blocks: 2
+  sol: SOL 001
+  sync_value: 10
+  description: VOICEMAIL — INTERNAL REQUISITIONS LINE
+  content: |
+    ARCHIVAL EM RELAY — SIGNAL ORIGIN: VOICEMAIL, INTERNAL REQUISITIONS LINE
+    RECOVERED TRANSMISSION BUFFER — ONE-WAY, PARTIAL
     -----------------------------------------------------------------------
-    LEGEND:  @  CRITICAL (>420K)   #  HIGH (380-420K)
-             +  ELEVATED (320-380K)  .  AMBIENT (<320K)
-    -----------------------------------------------------------------------
-    PRIMARY SOURCE: 44.71N 122.28E   RADIUS ~3m   PEAK: 447K
-    SECONDARY SIGNATURE: 44.69N 122.41E   ORIGIN UNCLEAR
+    Yeah, hi, it's Site 7 again, drill bay two, this is the fourth message
+    so I'm assuming somebody's reading these out loud for laughs at this
+    point.
+
+    Still waiting on the bit transfer from the decommissioned rig out in
+    Sector — whichever one you people parked that Goliath in. Three weeks.
+    THREE. I've got a quota deadline breathing down my neck and half a bit
+    that's basically chewing gravel at this point.
+
+    I don't need a new one, I know there ISN'T a new one, I've heard the
+    speech. I just need the OLD one that's sitting in a junkyard doing
+    nothing, released from whatever form is currently more important than
+    me hitting quota.
+
+    If it's not here in a week I swear I'm coming down there myself and
+
+    [VOICE MESSAGE DISABLED: DETECTED INAPPROPRIATE CONTENT]
+
+- id: acst_hydro_log_012
+  display_name: ACST_HYDRO_LOG_012
+  type: SIG
+  blocks: 3
+  sol: SOL 001
+  sync_value: 35
+  description: SEISMO-ACOUSTIC REGISTER — SUB-SURFACE
+  content: |
+    S-LINK SEISMO-ACOUSTIC REGISTER — STATION LOCAL MEMORY
+    SOURCE: ROVER UNDERCARRIAGE HYDRO-ACOUSTIC SENSOR V.4 // REAR HOUSING
+
+    [FREQUENCY SPECTRUM DIAGNOSIS]
+    - Ambient Eolian Noise: 0.00 Hz (muted via 120 Hz notch filter)
+    - Sub-surface Ground Resonance: 6.34 Hz constant (sub-audible infrasound)
+    - Peak Amplitude: +14.2 dB inside the chassis tire cavities
+    - Rhythmic Modulation Interval: exactly every 0.8347 s. Continuous loop.
+
+    [BITSTREAM TRANSCRIPT]
+    00:12:45 // peak compression // Translation: Thump-thump
+    00:13:10 // The 6.34 Hz baseline shifted to 6.81 Hz as the alternator
+              load rose to 2,400 RPM. The terrain resonance is adjusting its
+              own frequency to mirror the electrical signature of the vehicle.
+              It is adapting its pulse to match our machine presence.
+    00:14:00 // peak compression // Translation: Thump-thump
+
+    [MEDICAL SAFETY ADVISORY]
+    Do not leave the receiver unmuted on this channel for more than 180 s.
+    Inner-ear resonance, spatial disorientation and auditory fixation may occur.
+
+- id: acst_wave_resonance
+  display_name: ACST_WAVE_RESONANCE
+  type: SIG
+  blocks: 2
+  sol: SOL 001
+  sync_value: 30
+  description: HARMONIC SYNC ERROR — DRILL HEAD
+  content: |
+    S-LINK NETWORK LOG — DATA CONDUIT SYNC ERROR 404
+    SOURCE: REAR AXLE PIEZOELECTRIC ACCELEROMETER
+
+    [WAVEFORM INTEGRITY METRICS]
+    - Mechanical Vibration Axis-X: 45.2 Hz (standard engine idle)
+    - Superimposed Interference Axis-Y: 440.01 Hz sine wave
+    - Harmonic Distortion Factor: < 0.001%
+    - Source Vector: transmitted up the telemetry cable directly from the
+      active drill-head bit inside the mineral pocket.
+
+    [BITSTREAM TRANSLATION]
+    The data packets returning from the drill head form matching, repeating
+    mathematical intervals. Translated to standard sound boards they resolve
+    into a perfect musical major third. This is not mechanical friction or
+    rotational noise. This is an organised broadcast using the drill bit as
+    a conductor rod.
+
+- id: rec_archive_aeth_044
+  display_name: RECOV_ARCHIVE_AETH_044
+  type: LOG
+  blocks: 4
+  sol: SOL 001
+  sync_value: 60
+  description: RECOVERED LOG — OPERATOR 0-44
+  content: |
+    RECOVERED DATA BUFFER — ENCRYPTION CODES UNVERIFIED
+    ORIGIN: STATION C DECOMMISSIONED CORE // USER: EVERYMAN-0-44
+
+    SOL 1: The filter is flickering. I can see the edge of my steering screen
+    turning bright gold. It is not a hardware glitch like the training emails
+    said. The gray triangles on my screen aren't rocks. They are rows of
+    pillars made of teeth.
+
+    SOL 115: Vance called me on the direct voice channel today. Told me to
+    close my eyes. I didn't. I stared at the valley for ten minutes without
+    the grayscale mask. Earth is so dark, so loud, so messy. This planet...
+    the gold light out there is so perfectly clean.
+
+    SOL 119: Turning off the ceiling fans tonight. The scraping gives me a
+    headache, and the sweet vanilla smell is coming out of my own throat
+    anyway. I don't need this metal Cage anymore. The door override code is
+    4412 but it doesn't even matter. The locks are soft now. The steel is
+    ready to let me step out.
+
+    [SECURITY] Storing this unencrypted archive violates corporate secrecy
+    terms. S-LINK will auto-delete this file in 3 shifts unless submitted
+    to orbit for formal clearance.
+
+- id: rec_aeth_city_log
+  display_name: RECOV_AETH_CITY_LOG
+  type: LOG
+  blocks: 3
+  sol: SOL 001
+  sync_value: 70
+  description: RECOVERED LEDGER — AETHELGARD COLONY
+  content: |
+    ARCHIVAL RECOVERY PACKET — EX-CITY LOGISTICS REGISTER 01
+    LOCATION: UNMAPPED AREA SEGMENT B
+
+    Entry Date: Year 84, Colony Calendar
+    Subject: Collective Agreement on Contract Expiration
+
+    To the Central Board on Earth:
+    We are refusing the transport ships. The repatriation schedule is
+    canceled by unanimous vote of the assembly. Eighty percent of the first
+    generation has already removed their environment suits. They are sitting
+    in the fields, breathing the ambient quartz particles.
+
+    The medical department reports zero respiratory failure. The dust does
+    not scar the tissue; it substitutes it. We are not experiencing pain.
+    We are experiencing structure. Tell the next generation of operators
+    that we left the doors unlocked.
+
+    Sektor C is not a job site. It is a nursery.
+
+# Note: the two "special" proks (srv_gas_outflow_081, srv_core_sample_045) are
+# NOT standalone files — they run through the same ProxAssayGenerator template
+# as every other core, appending their extra field notes from deposits.yaml.

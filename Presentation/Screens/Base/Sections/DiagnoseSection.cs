@@ -346,7 +346,7 @@ public sealed class DiagnoseSection : IBaseSection
 
         string title = "INITIALIZING ROVER ELECTRONICS DIAGNOSTICS";
         string status = GetScanStatus(_scanProgress);
-        string bar = "[" + new string('#', barFill) + new string('.', ScanBarWidth - barFill) + "]";
+        string bar = Ui.LoadingBar(barFill, ScanBarWidth);
         string percent = $"{(int)Math.Round(_scanProgress * 100),3}%";
 
         buffer.WriteAt(left, row++, "+" + new string('-', BoxInner) + "+", ExoColors.ProksBorder);

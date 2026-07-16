@@ -10,5 +10,11 @@ public class CommsMessage
     public string Sol           { get; set; } = "";
     public bool   CanReply      { get; set; }
     public bool   Locked        { get; set; }
+
+    // Optional gates beyond SOL: file held anywhere / synced to SUIRDC. Sticky
+    // once shown (see CommsRepository.GetInbox).
+    public string RequiresFile   { get; set; } = "";
+    public string RequiresSynced { get; set; } = "";
+
     public List<ReplyOption> ReplyOptions { get; set; } = [];
 }

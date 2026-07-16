@@ -71,22 +71,15 @@ public class MemoryRepository
     {
         _state = new MemoryStorageState
         {
-            // em_burst_042 (4 blocks): 0,1,2 then 8 — FRAGMENTED
-            // field_log_003 (2 blocks): 3,4
-            // free: 5
-            // chem_probe_atm (2 blocks): 6,7
-            // em_burst_042 cont. (1 of 4): 8
-            // thermal_031 (4 blocks): 9,10,11,12
-            // free: 13,14,15
+            // Pre-loaded before the first mission. hng_seeker_hull_diag is left
+            // FRAGMENTED (split off past the power log) so DEFRAG has work fresh.
+            // field_log_003 (2): 0,1   hull_diag (4): 2,3,4 ... 8   power_drain (3): 5,6,7
             RoverBlocks =
             [
-                "em_burst_042", "em_burst_042", "em_burst_042",
                 "field_log_003", "field_log_003",
-                "",
-                "chem_probe_atm", "chem_probe_atm",
-                "em_burst_042",
-                "thermal_031", "thermal_031", "thermal_031", "thermal_031",
-                "", "", ""
+                "hng_seeker_hull_diag", "hng_seeker_hull_diag", "hng_seeker_hull_diag",
+                "hng_power_drain_scan", "hng_power_drain_scan", "hng_power_drain_scan",
+                "hng_seeker_hull_diag",
             ],
             LocalBlocks = [],
             SuirdcFiles = []
@@ -100,9 +93,8 @@ public class MemoryRepository
         return layout;
     }
 
-    // Drops unknown file ids and files whose on-tape block count no longer
-    // matches the catalogue (e.g. after a capacity change truncated a layout).
-    // A partial file is worse than no file — it lies about its size.
+    // Drops unknown file ids and files whose block count no longer matches the
+    // catalogue — a partial file lies about its size.
     private void SanitizeState()
     {
         SanitizeLayout(_state.RoverBlocks);
@@ -126,6 +118,15 @@ public class MemoryRepository
 
     public MemoryFile? GetFile(string id) =>
         _allFiles.FirstOrDefault(f => f.Id == id);
+
+    // Evidence checks for COMMS gating: held on any tape / synced to SUIRDC.
+    public bool HasFileAnywhere(string fileId) =>
+        _state.RoverBlocks.Contains(fileId) ||
+        _state.LocalBlocks.Contains(fileId) ||
+        _state.SuirdcFiles.Contains(fileId);
+
+    public bool IsSynced(string fileId) =>
+        _state.SuirdcFiles.Contains(fileId);
 
     public List<string?> GetLayout(StorageLocation location)
     {
@@ -271,9 +272,8 @@ public class MemoryRepository
         return changed;
     }
 
-    // Target layout for defragmentation: blocks GROUPED per file (in order of
-    // first appearance), then free space. Plain left-compaction is not enough —
-    // it preserves interleavings, so a fragmented file could survive a "defrag".
+    // Defrag target: blocks grouped per file (first-appearance order), then free
+    // space. Plain left-compaction isn't enough — it preserves interleavings.
     public List<string?> GetDefragTarget(StorageLocation location)
     {
         var layout = GetLayout(location);
@@ -290,6 +290,42 @@ public class MemoryRepository
         if (location == StorageLocation.Rover) _state.RoverBlocks = raw;
         else                                   _state.LocalBlocks = raw;
         Save();
+    }
+
+    // Registers a runtime-generated file (e.g. a proks assay) into the in-memory
+    // catalogue only — never written back to Content/memory_files.yaml.
+    public void RegisterDynamicFile(MemoryFile file)
+    {
+        if (GetFile(file.Id) is null) _allFiles.Add(file);
+    }
+
+    // Adds a collected file onto the rover tape. True if it ends up there (incl.
+    // already present); false only when there's no room, so the caller can report it.
+    public bool AddFileToRover(string fileId)
+    {
+        var file = GetFile(fileId);
+        if (file == null) return false;
+        if (_state.RoverBlocks.Contains(fileId)) return true;
+
+        int free = _state.RoverBlocks.Count(x => string.IsNullOrEmpty(x));
+        if (free < file.Blocks) return false;
+
+        int remaining = file.Blocks;
+        for (int i = 0; i < _state.RoverBlocks.Count && remaining > 0; i++)
+            if (string.IsNullOrEmpty(_state.RoverBlocks[i])) { _state.RoverBlocks[i] = fileId; remaining--; }
+
+        Save();
+        return true;
+    }
+
+    // Flush the rover tape (Local/SUIRDC are safe) — the volatile field buffer,
+    // lost on the next undock if not offloaded. Returns whether anything was there.
+    public bool WipeRover()
+    {
+        bool any = _state.RoverBlocks.Any(b => !string.IsNullOrEmpty(b));
+        for (int i = 0; i < _state.RoverBlocks.Count; i++) _state.RoverBlocks[i] = "";
+        if (any) Save();
+        return any;
     }
 
     private void Save()

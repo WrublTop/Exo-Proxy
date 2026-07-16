@@ -14,14 +14,11 @@ public sealed class BaseScreen : IScreen
     private readonly OperatorProgress _progress;
     private readonly IAudioService _audio;
 
-    // The ambient loop currently meant to be playing (base hum vs field bed). We
-    // only re-trigger when this actually changes, so bouncing between hub sections
-    // doesn't restart the loop.
+    // Ambient loop that should be playing (base hum vs field bed); re-triggered only on change.
     private string _currentAmbient = "";
 
-    // The mission world is owned here, not by MissionSection, so the rover's
-    // charge keeps ticking up while the operator works the hub, and so its state
-    // is loaded and persisted in one place.
+    // Owned here, not by MissionSection, so charge keeps ticking in the hub and
+    // state loads/persists in one place.
     private readonly MissionWorld _world;
 
     // Operator ended the session — Program.cs returns to the boot screen.
@@ -30,9 +27,7 @@ public sealed class BaseScreen : IScreen
     // Operator powered the terminal down — Program.cs shuts down cleanly.
     public bool ExitRequested { get; private set; }
 
-    // Rover lost in the field and the operator confirmed termination — Program.cs
-    // runs the permadeath (wipe saves, mark the account terminated) and returns to
-    // the login screen.
+    // Rover lost and termination confirmed — Program.cs runs the permadeath.
     public bool PerishRequested { get; private set; }
 
     public BaseScreen(OperatorAccount account, GameSettings settings,
@@ -65,11 +60,11 @@ public sealed class BaseScreen : IScreen
         var hub       = new Sections.HubSection(account, progress, audio, loadWarning,
                                                 devMode, commsRepo, memRepo, roverStats, _world);
         var settings_ = new Sections.SettingsSection(settings, account, registry, audio);
-        var comms     = new Sections.CommsSection(account, commsRepo, progress, audio);
+        var comms     = new Sections.CommsSection(account, commsRepo, memRepo, progress, audio);
         var memory    = new Sections.MemorySection(account, memRepo, progress, audio);
         var upgrade   = new Sections.RoverUpgradeSection(roverStats, account, registry);
         var diagnose  = new Sections.DiagnoseSection(account.Login, roverStats);
-        var mission   = new Sections.Mission.MissionSection(progress, _world, devMode, audio);
+        var mission   = new Sections.Mission.MissionSection(progress, account, _world, devMode, audio, memRepo);
 
         _sections = new Dictionary<string, IBaseSection>
         {
@@ -111,9 +106,7 @@ public sealed class BaseScreen : IScreen
         _audio.Update(time.Delta.TotalSeconds);   // drive music playlist + fade cleanup
         _activeSection.Update(time, input);
 
-        // Recharge while docked anywhere in the base — the hub, comms, memory,
-        // diag all count. Stepping into the field (MISSION) ends it: the rover
-        // runs on whatever charge it left with.
+        // Recharge while docked anywhere in the base; MISSION (the field) ends it.
         if (_world.IsDocked && _activeSection.SectionId != SectionIds.Mission)
             _world.Recharge(time.Delta.TotalSeconds);
 
@@ -139,9 +132,7 @@ public sealed class BaseScreen : IScreen
         }
         else if (response.Request == BaseSectionRequest.Dock)
         {
-            // Docking advances the mission day and drops the operator back into
-            // the hub, reconnected to SUIRDC's servers. SOL is persisted at once
-            // so a crash can't replay the day.
+            // Docking advances the day and returns to the hub; SOL persisted at once.
             _progress.Sol++;
             _progress.Save();
             _activeSection = _sections[SectionIds.Hub];

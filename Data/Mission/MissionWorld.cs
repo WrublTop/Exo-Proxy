@@ -1,39 +1,24 @@
 ﻿namespace ExoProxy.Data.Mission;
 
-// The mission terrain and everything that lives on it. For the walking
-// skeleton that is just the rover and the base station; deposits, anomalies
-// and per-operator persistence arrive later.
-//
-// Coordinates are world units — one unit is one grid cell on the map. The
-// base station sits at (0,0) and the world extends into negative coordinates
-// in every direction. Bounds are placeholders until the team tunes them.
+// The mission terrain and everything on it: the rover, bases, deposits and the
+// supply convoy. Coordinates are world units (one unit = one grid cell); base 1
+// is the campaign start and the world extends into negative coords in every dir.
 public sealed class MissionWorld
 {
-    // Survey rectangle — the playable bounds. The authored land fits inside with a
-    // thin ocean margin; the rover hard-stops here (the lethal deep ocean and the
-    // off-map void lie beyond, and there's nothing to find there). Move clamps to
-    // this box, so the edge reads as a survey boundary rather than a wall in view.
+    // Survey rectangle — the playable bounds. Move clamps here; beyond lies the
+    // lethal deep ocean / off-map void with nothing to find.
     public const int MinX = -180, MaxX = 180;
     public const int MinY = -160, MaxY = 160;
 
     // ── battery economy ───────────────────────────────────────────────────────
-    // Charge is stored in fine-grained "units" (like a phone's mAh) so the per-
-    // cell cost can carry sub-percent precision once sensors, terrain and upgrade
-    // modifiers stack onto it. The player only ever sees the derived percent.
-    //
-    // 10000 capacity ÷ 65 base cost ≈ 154 flat cells — a ceiling never reached,
-    // because slope (charged on Δlevel²), scanning and bad routing pile on. Real
-    // range lands ~60 cells driving blind, ~110–120 routing well. See the
-    // battery-economy design notes.
+    // Charge is stored in fine "units" so per-cell cost carries sub-percent
+    // precision; the player only sees the derived percent. Real range ~60 cells
+    // blind, ~110-120 routing well (slope/scan/routing eat the rest).
     public const int Capacity = 10000;
     public const int BaseMoveCost = 65;
 
-    // Survey bases on Cyra-6. Base 1 is the campaign start and the rover's home
-    // (spawn, docking, recharge), up in the northern highlands (Maciek's authored
-    // placement). Bases 2 and 3 — west-centre and south — start hidden-dim on the
-    // map and reveal when the rover reaches them; docking/recharge there is later
-    // gameplay. The terrain stays centred on the world origin, so the opening POS
-    // reads a non-zero coordinate by design.
+    // Survey bases on Cyra-6. Base 1 is home (spawn/dock/recharge); 2 and 3 start
+    // hidden-dim and reveal when the rover reaches them (activation is later gameplay).
     public readonly record struct BaseStation(string Label, int X, int Y);
     public static readonly BaseStation[] Bases =
     [
@@ -60,34 +45,31 @@ public sealed class MissionWorld
 
     public bool IsAtBase => RoverX == BaseX && RoverY == BaseY;
 
-    // Docking is a latch, not just "sitting on the base tile": after an
-    // excursion the rover can be ON the base and still undocked, which is what
-    // makes the section offer the DOCK prompt. The session starts docked.
+    // A latch, not just "on the base tile" — the rover can be at base yet undocked
+    // (which raises the DOCK prompt). Starts docked.
     public bool IsDocked { get; private set; } = true;
 
-    // Confirmed dock — advances the loop (the section raises SOL via BaseScreen)
-    // and, later, starts the recharge.
-    public void Dock() => IsDocked = true;
+    // Confirmed dock — advances the loop and clears the per-SOL convoy attempt.
+    public void Dock()
+    {
+        IsDocked = true;
+        ConvoyAttemptedThisSol = false;
+    }
 
     public const int MaxMarks = 5;
 
     private readonly List<MapMark> _marks = [];
     public IReadOnlyList<MapMark> Marks => _marks;
 
-    // The rover's path this session: visited nodes plus the lattice segments
-    // between them. The renderer recolours the grid characters along this path (it
-    // doesn't stamp dots), so the trail reads as a track drawn on the grid.
-    // Session-only — not saved (a campaign-long trail would bloat the file and
-    // isn't needed for navigation). Edge key (x, y, H): a horizontal edge stores
-    // its west node, a vertical edge stores its south node.
+    // The rover's path this session: visited nodes + the lattice edges between
+    // them (the renderer recolours the grid along it). Session-only, not saved.
+    // Edge key (x, y, H): horizontal stores its west node, vertical its south node.
     private readonly HashSet<(int X, int Y)> _trail = [];
     private readonly HashSet<(int X, int Y, bool H)> _trailEdges = [];
     public IReadOnlySet<(int X, int Y)> Trail => _trail;
     public IReadOnlySet<(int X, int Y, bool H)> TrailEdges => _trailEdges;
 
-    // Set by MissionRepository to an autosave callback. The section and the
-    // coordinator invoke it at checkpoints (move done, mark set, dock, logout) —
-    // never per-frame, so the recharge tick doesn't hammer the disk.
+    // Autosave callback (set by MissionRepository), invoked at checkpoints only — never per-frame.
     public Action? Persist { get; set; }
 
     // Shared authored heightmap. Loaded once and attached here; never part of
@@ -97,6 +79,11 @@ public sealed class MissionWorld
     // Authored survey-sector overlay (the SUIRDC grid). Shared world content
     // like Terrain — loaded once, never part of the per-operator save.
     public IReadOnlyList<Sector> Sectors { get; set; } = [];
+
+    // Authored deposit placement list (Content/deposits.yaml). Shared content
+    // like Terrain/Sectors — the source EnsureFieldEntities rolls positions
+    // from. Held on the world so a DEV RESET can re-roll without the repository.
+    public IReadOnlyList<DepositDefinition> DepositDefs { get; set; } = [];
 
     // The sector the rover currently sits in, or null when between sectors.
     // First match wins if authored rectangles overlap.
@@ -120,6 +107,13 @@ public sealed class MissionWorld
         IsDocked  = IsDocked,
         Marks    = _marks.Select(m => new MarkState { Name = m.Name, X = m.X, Y = m.Y }).ToList(),
         DiscoveredBases = _discovered.ToList(),
+        Deposits = _deposits.Select(d => new DepositState
+        {
+            Kind = d.Kind, X = d.X, Y = d.Y, FileId = d.FileId, Tier = d.Tier, Hidden = d.Hidden,
+            SolStart = d.SolStart, SolEnd = d.SolEnd,
+        }).ToList(),
+        ExtractedFileIds = _extractedFileIds.ToList(),
+        RevealedFileIds  = _revealedHidden.ToList(),
     };
 
     // Rebuilds a world from a saved snapshot, clamping anything a corrupt save
@@ -150,6 +144,13 @@ public sealed class MissionWorld
         w._trailEdges.Clear();
         w._trail.Add((w.RoverX, w.RoverY));           // trail is session-only
 
+        foreach (var d in s.Deposits)
+            w._deposits.Add(new Deposit(d.Kind, d.X, d.Y, d.FileId, d.Tier, d.Hidden, d.SolStart, d.SolEnd));
+        foreach (var id in s.ExtractedFileIds)
+            w._extractedFileIds.Add(id);
+        foreach (var id in s.RevealedFileIds)
+            w._revealedHidden.Add(id);
+
         return w;
     }
 
@@ -168,26 +169,23 @@ public sealed class MissionWorld
         _trail.Add((RoverX, RoverY));
         _discovered.Clear();
         _discovered.Add("1");
+        ConvoyAttemptedThisSol = false;
+        _extractedFileIds.Clear();
+        _revealedHidden.Clear();
+        _deposits.Clear();
+        EnsureFieldEntities(new Random());   // re-roll fresh positions from the authored defs
         Persist?.Invoke();
     }
 
-    // Battery surcharge for elevation change between the current cell and the
-    // next, charged on |Δlevel|² — a convex curve, so gentle ground stays cheap
-    // while steep climbs and drops cost disproportionately more. Climbing and
-    // descending both tax the drive. Main lever for how much terrain shapes a
-    // route: on Cyra-6 ~80% of steps are Δ≤2 (cheap) while the steep 7% tail
-    // (Δ5+) carries the real cost, so avoiding it ≈ doubles range. Tunable.
+    // Slope surcharge on |Δlevel|² — convex, so gentle ground stays cheap while
+    // steep climbs/drops cost far more. Main lever for how terrain shapes a route.
     public const int SlopeCostSquared = 18;
 
-    // Battery surcharge per step while a sensor is online — a scan is power-
-    // hungry, so you can't survey the whole map with one running. Tunable.
+    // Surcharge per step per active sensor — scans stack, so running all three isn't free.
     public const int SensorStepDrain = 20;
 
-    // Cost of the next single cell of travel in `dir`: the base move cost, plus
-    // the squared terrain slope onto that cell, plus any active-sensor drain.
-    // Upgrade discounts will plug in here later. With no terrain loaded the slope
-    // term is zero.
-    public int StepCost(Direction dir, bool sensorActive)
+    // Cost of the next cell in `dir`: base cost + squared slope + per-sensor drain.
+    public int StepCost(Direction dir, int activeSensorCount)
     {
         int cost = BaseMoveCost;
         if (Terrain is { } t)
@@ -196,27 +194,22 @@ public sealed class MissionWorld
             int d = Math.Abs(t.LevelAt(RoverX + dx, RoverY + dy) - t.LevelAt(RoverX, RoverY));
             cost += d * d * SlopeCostSquared;
         }
-        if (sensorActive) cost += SensorStepDrain;
+        cost += activeSensorCount * SensorStepDrain;
         return cost;
     }
 
-    // Draws the cost of one cell from the battery. Returns false — and leaves
-    // the charge untouched — when there isn't enough for a full step, so the
-    // rover simply stops where it is. Like an ATM: it checks before it pays.
-    public bool TrySpendForStep(Direction dir, bool sensorActive)
+    // Spends one cell's cost; returns false and leaves charge untouched if it can't cover a full step.
+    public bool TrySpendForStep(Direction dir, int activeSensorCount)
     {
-        int cost = StepCost(dir, sensorActive);
+        int cost = StepCost(dir, activeSensorCount);
         if (Charge < cost) return false;
         Charge -= cost;
         return true;
     }
 
     // ── recharge (docked at base) ─────────────────────────────────────────────
-    // Two-phase, diminishing-returns curve: a fast climb to 80% then a slow
-    // trickle for the last 20%. A full charge takes ~5 minutes, but the slow tail
-    // means a rational operator leaves around 80% rather than idling for 100% —
-    // the curve itself discourages dead waiting. Charging only runs while docked
-    // in the base; entering the field freezes it (driven by BaseScreen).
+    // Two-phase diminishing curve: fast to 80%, slow trickle for the last 20% (~5
+    // min full), so leaving around 80% is rational. Only runs while docked.
     public const int FastChargeCeiling = 8000;                              // 80%
     private const double FastChargeRate = FastChargeCeiling / 180.0;        // 0→80% in 3 min
     private const double TrickleRate = (Capacity - FastChargeCeiling) / 120.0; // last 20% in 2 min
@@ -244,14 +237,8 @@ public sealed class MissionWorld
     }
 
     // ── hull integrity ────────────────────────────────────────────────────────
-    // The rover drives anywhere — band 0 (sea, void, canyon floor) is passable.
-    // The hit comes from the *fall*: dropping off solid ground onto band 0 slams
-    // the chassis for a fixed chunk of integrity (the slope cost of the drop, and
-    // of the climb back out, is charged on top). Driving along the bottom or
-    // climbing out costs no integrity — only the fall does. A few falls and the
-    // hull fails. Repairs happen at base later (DIAG); for now integrity only ever
-    // falls. (Wandering the open ocean is fenced off by the survey bounds above,
-    // not by hull damage.)
+    // Band 0 (sea/void/canyon floor) is passable; damage comes only from the fall
+    // onto it, not driving along or climbing out. A few falls and the hull fails.
     public const int MaxIntegrity = 100;
     public const int ImpactDamage = 25;   // ~4 falls and the hull fails
 
@@ -315,5 +302,203 @@ public sealed class MissionWorld
     {
         foreach (var b in Bases)
             if (b.X == RoverX && b.Y == RoverY) _discovered.Add(b.Label);
+    }
+
+    // ── field entities: deposits + the automated supply convoy ───────────────
+    // SolStart/SolEnd null for THERMAL (no window); set for EM (live that
+    // inclusive range only, then gone — missing it is a real loss).
+    public readonly record struct Deposit(string Kind, int X, int Y, string FileId, int Tier, bool Hidden, int? SolStart, int? SolEnd);
+
+    private readonly List<Deposit> _deposits = [];
+    public IReadOnlyList<Deposit> Deposits => _deposits;
+
+    private readonly HashSet<string> _extractedFileIds = [];
+    public bool IsDepositExtracted(string fileId) => _extractedFileIds.Contains(fileId);
+    public void MarkExtracted(string fileId) => _extractedFileIds.Add(fileId);
+
+    // Hidden deposits the operator has uncovered — one-way, persisted campaign.
+    private readonly HashSet<string> _revealedHidden = [];
+    public void RevealVein(string fileId) { if (_revealedHidden.Add(fileId)) Persist?.Invoke(); }
+
+    // A hidden deposit still waiting to be uncovered (the convoy's reward).
+    public bool TryGetHiddenVein(out Deposit vein)
+    {
+        foreach (var d in _deposits)
+            if (d.Hidden && !_revealedHidden.Contains(d.FileId) && !IsDepositExtracted(d.FileId))
+            { vein = d; return true; }
+        vein = default;
+        return false;
+    }
+
+    // Authored extra notes for a deposit's file (special proks); looked up at
+    // extraction time so nothing long rides the save.
+    public string DepositNote(string fileId) =>
+        DepositDefs.FirstOrDefault(d => d.FileId == fileId)?.Note ?? "";
+
+    // Live = not extracted, revealed if hidden, and (EM only) within [SolStart, SolEnd].
+    public bool IsDepositLive(Deposit d, int currentSol) =>
+        !IsDepositExtracted(d.FileId) &&
+        (!d.Hidden || _revealedHidden.Contains(d.FileId)) &&
+        (d.SolStart is null || (currentSol >= d.SolStart && currentSol <= d.SolEnd));
+
+    // The deposit sitting exactly under the rover, if any and currently live.
+    // Extraction requires standing on the tile — no fuzzy radius.
+    public bool TryGetDepositAt(int x, int y, int currentSol, out Deposit deposit)
+    {
+        foreach (var d in _deposits)
+            if (d.X == x && d.Y == y && IsDepositLive(d, currentSol)) { deposit = d; return true; }
+        deposit = default;
+        return false;
+    }
+
+    // Unmanned legacy SUIRDC runner lapping a fixed authored loop near base. The
+    // track is content (same every campaign); only its position is dynamic (random
+    // start each session), not persisted.
+    public IReadOnlyList<(int X, int Y)> ConvoyPath { get; set; } = [];
+    public int ConvoyX { get; private set; }
+    public int ConvoyY { get; private set; }
+    private double _convoyDist;                        // distance travelled along the loop
+    private const double ConvoyUnitsPerSecond = 1.0;   // one tile/sec — reads the map scale
+
+    public bool HasConvoy => ConvoyPath.Count >= 2;
+
+    // One sync attempt per SOL: set when an attempt resolves (win OR lose),
+    // cleared on Dock() so the next excursion offers a fresh try.
+    public bool ConvoyAttemptedThisSol { get; private set; }
+    public void MarkConvoyAttempted() => ConvoyAttemptedThisSol = true;
+
+    private double ConvoyPerimeter()
+    {
+        double p = 0;
+        for (int i = 0; i < ConvoyPath.Count; i++)
+        {
+            var a = ConvoyPath[i];
+            var b = ConvoyPath[(i + 1) % ConvoyPath.Count];
+            p += Math.Sqrt((double)(b.X - a.X) * (b.X - a.X) + (double)(b.Y - a.Y) * (b.Y - a.Y));
+        }
+        return Math.Max(1, p);
+    }
+
+    // Drops the runner at a random point on the loop — "respawns anywhere".
+    public void SeedConvoy(Random rng)
+    {
+        if (!HasConvoy) return;
+        _convoyDist = rng.NextDouble() * ConvoyPerimeter();
+        UpdateConvoyPosition();
+    }
+
+    // Rolls deposit positions once per campaign from deposits.yaml, then frozen —
+    // a restored save already has _deposits, so the guard makes this a no-op.
+    // "fixed" places at exact coords; "area" rolls once within anchor±variation.
+    public void EnsureFieldEntities(Random rng)
+    {
+        if (_deposits.Count > 0) return;   // already rolled — this campaign or a restored save
+
+        foreach (var def in DepositDefs)
+        {
+            (int x, int y) = def.Placement == "area"
+                ? FindValidTileInRect(rng, def.AnchorX, def.AnchorY, def.VariationX, def.VariationY)
+                : (def.X, def.Y);
+            _deposits.Add(new Deposit(def.Kind, x, y, def.FileId, def.Tier, def.Hidden, def.SolStart, def.SolEnd));
+        }
+    }
+
+    // Random point in a rectangle centred on (cx,cy) spanning ±varX/±varY,
+    // retried until it lands on a free tile. Falls back to the anchor itself
+    // (an author's job to pick a sane one) if nothing turns up in range.
+    private (int X, int Y) FindValidTileInRect(Random rng, int cx, int cy, int varX, int varY)
+    {
+        for (int attempt = 0; attempt < 40; attempt++)
+        {
+            int x = Math.Clamp(cx + rng.Next(-varX, varX + 1), MinX, MaxX);
+            int y = Math.Clamp(cy + rng.Next(-varY, varY + 1), MinY, MaxY);
+            if (IsFreePlacementTile(x, y)) return (x, y);
+        }
+        return (cx, cy);
+    }
+
+    // Passable ground, not on a base, not on another rolled deposit. (Fixed
+    // placement skips this — the author owns those coords.)
+    private bool IsFreePlacementTile(int x, int y)
+    {
+        if (Terrain is not null && Terrain.IsImpassable(x, y)) return false;
+        foreach (var b in Bases) if (b.X == x && b.Y == y) return false;
+        foreach (var d in _deposits) if (d.X == x && d.Y == y) return false;
+        return true;
+    }
+
+    public void UpdateConvoy(double seconds)
+    {
+        if (!HasConvoy) return;
+        double perim = ConvoyPerimeter();
+        _convoyDist = (_convoyDist + ConvoyUnitsPerSecond * seconds) % perim;
+        if (_convoyDist < 0) _convoyDist += perim;
+        UpdateConvoyPosition();
+    }
+
+    private void UpdateConvoyPosition()
+    {
+        if (!HasConvoy) return;
+        double d = _convoyDist;
+        for (int i = 0; i < ConvoyPath.Count; i++)
+        {
+            var a = ConvoyPath[i];
+            var b = ConvoyPath[(i + 1) % ConvoyPath.Count];
+            double segLen = Math.Sqrt((double)(b.X - a.X) * (b.X - a.X) + (double)(b.Y - a.Y) * (b.Y - a.Y));
+            if (d <= segLen || i == ConvoyPath.Count - 1)
+            {
+                double t = segLen > 0 ? d / segLen : 0;
+                ConvoyX = (int)Math.Round(a.X + (b.X - a.X) * t);
+                ConvoyY = (int)Math.Round(a.Y + (b.Y - a.Y) * t);
+                return;
+            }
+            d -= segLen;
+        }
+    }
+
+    public bool IsNearConvoy(int range = 2) =>
+        HasConvoy && Math.Abs(RoverX - ConvoyX) <= range && Math.Abs(RoverY - ConvoyY) <= range;
+
+    // "Hitch a ride": slide the rover up to maxTiles in (dx,dy) for free — stops
+    // at the edge or before a band-0 pit. Returns tiles ridden.
+    public int RideConvoy(int dx, int dy, int maxTiles)
+    {
+        if (dx == 0 && dy == 0) return 0;
+        int moved = 0;
+        for (int i = 0; i < maxTiles; i++)
+        {
+            int nx = RoverX + dx, ny = RoverY + dy;
+            if (nx < MinX || nx > MaxX || ny < MinY || ny > MaxY) break;
+            if (Terrain is { } t && t.IsImpassable(nx, ny)) break;
+            int ox = RoverX, oy = RoverY;
+            RoverX = nx; RoverY = ny;
+            RecordTrail(ox, oy, nx, ny);
+            moved++;
+        }
+        if (moved > 0)
+        {
+            if (!IsAtBase) IsDocked = false;
+            DiscoverBaseHere();
+            Persist?.Invoke();
+        }
+        return moved;
+    }
+
+    // Step direction the runner is currently travelling — used by the "hitch a
+    // ride" outcome to slide the rover the same way.
+    public (int DX, int DY) ConvoyHeading()
+    {
+        if (!HasConvoy) return (0, 0);
+        double d = _convoyDist;
+        for (int i = 0; i < ConvoyPath.Count; i++)
+        {
+            var a = ConvoyPath[i];
+            var b = ConvoyPath[(i + 1) % ConvoyPath.Count];
+            double segLen = Math.Sqrt((double)(b.X - a.X) * (b.X - a.X) + (double)(b.Y - a.Y) * (b.Y - a.Y));
+            if (d <= segLen || i == ConvoyPath.Count - 1)
+                return (Math.Sign(b.X - a.X), Math.Sign(b.Y - a.Y));
+            d -= segLen;
+        }
+        return (0, 0);
     }
 }

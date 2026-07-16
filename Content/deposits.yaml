@@ -1,0 +1,87 @@
+# Authored field-deposit placement.
+#   placement: area   — random tile within [anchor ± variation] (a square,
+#     retried off hazards / bases / other deposits), rolled once at campaign
+#     start and frozen (persisted). DEV RESET re-rolls.
+#   placement: fixed  — exact x/y, no validation (author's responsibility).
+#
+# tier (proks only, 1..3 = common/rich/prime): sets the assay quality band and
+#   sync reward. INDEPENDENT of position — a low-tier seam can sit near base, a
+#   prime one far. Ignored for EM.
+#
+# THERMAL (proks): no sol window, collectible until extracted.
+# EM (signal): sol_start/sol_end (inclusive) — live only in that window, then
+#   gone for good.
+#
+# DEMO LAYOUT: everything scattered within ~50 tiles of Base 1 (20,100) — the
+# player won't range further in a 5-sol demo. 10 proks (tier pyramid 4/4/2,
+# two authored specials) + 6 EM staggered across sols 1-5.
+
+# ---- PROKS (10) — generic assays (generator) + 2 authored specials ----
+
+- { file_id: core_sample_a, kind: THERMAL, tier: 1, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35 }
+- { file_id: core_sample_b, kind: THERMAL, tier: 1, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35 }
+- { file_id: core_sample_c, kind: THERMAL, tier: 1, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35 }
+- { file_id: core_sample_d, kind: THERMAL, tier: 1, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35 }
+- { file_id: core_sample_e, kind: THERMAL, tier: 2, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35 }
+- { file_id: core_sample_f, kind: THERMAL, tier: 2, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35 }
+- { file_id: core_sample_g, kind: THERMAL, tier: 2, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35 }
+- { file_id: core_sample_h, kind: THERMAL, tier: 3, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35 }
+
+- file_id: srv_gas_outflow_081
+  kind: THERMAL
+  tier: 2
+  placement: area
+  anchor_x: 20
+  anchor_y: 100
+  variation_x: 35
+  variation_y: 35
+  note: |
+    [FORWARD SNIFFER SUPPLEMENT — SEAM C-081]
+    Gaseous Prox isotope 20.9% (unclassified volatile aerosol). On retraction
+    the outgassing held a cohesive sphere around the forward chassis for
+    114.6s — micro-crystalline particles orbiting the optical lens in a
+    synchronized vector. Chromatography flagged a synthetic vanilla footprint
+    (Vanillin 11-A). No aromatherapy valves exist on the vehicle exterior.
+
+- file_id: srv_core_sample_045
+  kind: THERMAL
+  tier: 3
+  placement: area
+  anchor_x: 20
+  anchor_y: 100
+  variation_x: 35
+  variation_y: 35
+  note: |
+    [DEEP-BORE SUPPLEMENT — SEAM C-045]
+    Drill resistance collapsed at the 12.10m interface: torque 4,200 -> 150 Nm,
+    core temperature inverted 410C -> 36C, hydro-pressure dropped to zero.
+    X-ray diffraction: the borehole perimeter realigned and the crystalline
+    lattice expanded into the cavity within 4.12s of bit retraction, sealing
+    the entry point — secondary radar confirms 100% occlusion. The matrix
+    behaves like regenerating muscle tissue, not brittle bedrock.
+
+# ---- HIDDEN vein — invisible until the convoy's supply manifest reveals it ----
+
+- file_id: prox_hidden_vein
+  kind: THERMAL
+  tier: 3
+  hidden: true
+  placement: area
+  anchor_x: 20
+  anchor_y: 100
+  variation_x: 40
+  variation_y: 40
+  note: |
+    [CACHE CROSS-REF — SUPPLY RUNNER MANIFEST]
+    Seam logged off the books: the convoy's route database had it flagged as a
+    high-purity Active Prox pocket the survey grid never reported. Draw your own
+    conclusions about what else the logistics net keeps to itself.
+
+# ---- EM (6) — signal captures, staggered windows, near -> far ----
+
+- { file_id: em_capture_comm,     kind: EM, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 18, variation_y: 18, sol_start: 1, sol_end: 2 }
+- { file_id: acst_hydro_log_012,  kind: EM, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 18, variation_y: 18, sol_start: 1, sol_end: 3 }
+- { file_id: acst_wave_resonance, kind: EM, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 28, variation_y: 28, sol_start: 2, sol_end: 4 }
+- { file_id: em_capture_relay,    kind: EM, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 28, variation_y: 28, sol_start: 2, sol_end: 4 }
+- { file_id: rec_archive_aeth_044, kind: EM, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35, sol_start: 2, sol_end: 5 }
+- { file_id: rec_aeth_city_log,   kind: EM, placement: area, anchor_x: 20, anchor_y: 100, variation_x: 35, variation_y: 35, sol_start: 3, sol_end: 5 }

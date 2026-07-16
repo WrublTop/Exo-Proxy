@@ -9,4 +9,6 @@ public class MemoryFile
     public string Sol         { get; set; } = "SOL 001";
     public string Description { get; set; } = "";
     public string Content     { get; set; } = "";
+
+    public int SyncValue { get; set; }   // credits for syncing to SUIRDC (demo-scale); not spent yet
 }

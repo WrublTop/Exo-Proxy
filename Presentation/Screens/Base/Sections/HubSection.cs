@@ -462,7 +462,7 @@ public sealed class HubSection : IBaseSection
         }
         else if (!_helpVisible)
         {
-            const string hint = "/help";
+            const string hint = "/HELP";
             buffer.WriteAt(left + BoxWidth - hint.Length, centerY + 4, hint, ExoColors.ProksDark);
         }
 
