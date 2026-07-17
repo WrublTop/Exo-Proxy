@@ -103,6 +103,8 @@ public sealed class LoginPhase : IBootPhase
                 _loginBuffer    = "";
                 _passwordBuffer = "";
                 _mode           = InputMode.Login;
+                return;   // consume the key — otherwise it falls through and the
+                          // 'y'/'n' gets re-typed into the now-Login input field
             }
             else if (key.KeyChar == 'n' || key.KeyChar == 'N')
             {
@@ -111,6 +113,7 @@ public sealed class LoginPhase : IBootPhase
                 _loginBuffer    = "";
                 _passwordBuffer = "";
                 _mode           = InputMode.Login;
+                return;
             }
             // ESC falls through to the handler below
             else if (key.Key != ConsoleKey.Escape)

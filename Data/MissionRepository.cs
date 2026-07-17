@@ -64,6 +64,16 @@ public class MissionRepository
         // Shared authored survey-sector overlay — content like the terrain.
         World.Sectors = SectorMap.Load(
             Path.Combine(AppContext.BaseDirectory, "Content", "sectors.yaml"));
+
+        // Authored deposit placement — content; EnsureFieldEntities rolls it once per campaign.
+        World.DepositDefs = DepositDefinitions.Load(
+            Path.Combine(AppContext.BaseDirectory, "Content", "deposits.yaml"));
+        World.EnsureFieldEntities(new Random());
+
+        // Convoy patrol loop — authored content; the runner just gets a random start each session.
+        World.ConvoyPath = ConvoyRoute.Load(
+            Path.Combine(AppContext.BaseDirectory, "Content", "convoy_route.yaml"));
+        World.SeedConvoy(new Random());
     }
 
     public void Save()

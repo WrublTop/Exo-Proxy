@@ -8,6 +8,14 @@ public static class Ui
     public static string Truncate(string s, int max) =>
         s.Length <= max ? s : s[..Math.Max(0, max - 1)] + "…";
 
+    // Canonical progress bar [####....] — used by every loading bar (DIAG, QLINK…),
+    // not the file-transfer arrows.
+    public static string LoadingBar(int filled, int width)
+    {
+        filled = Math.Clamp(filled, 0, width);
+        return "[" + new string('#', filled) + new string('.', width - filled) + "]";
+    }
+
     // Inline separator border: "├ LABEL ────┤". innerW excludes ├ ┤.
     public static void WriteTransmitBorder(IRenderBuffer buffer, int borderX, int y,
                                             int innerW, string label)

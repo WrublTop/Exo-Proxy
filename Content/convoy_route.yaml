@@ -1,0 +1,7 @@
+# Fixed convoy patrol loop (world coords), rectilinear + closed (the last point
+# links back to the first). Rendered through the SAME edge -> box-glyph system as
+# the survey sectors, so corners and tees come out clean. The track is identical
+# every campaign; only the supply runner's position along it moves (random start
+# each session, then it laps the loop). Keep segments axis-aligned (each point
+# shares an X or a Y with the next) or the box-drawing won't resolve.
+points: [[-10, 70], [50, 70], [50, 100], [30, 100], [30, 128], [-10, 128]]

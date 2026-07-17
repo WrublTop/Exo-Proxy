@@ -258,11 +258,11 @@ public sealed class QlinkHandshakePhase : IBootPhase
 
             // ── SNR acquisition ────────────────────────────────────────────
             new(200,  "SIGNAL ACQUISITION",                                                              proks),
-            new(400,  "SNR  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0 dB",                                  sigDm),
-            new(500,  "SNR  [▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░░░░░░░░]   8 dB",                                  sigDm, UpdateLast: true),
-            new(500,  "SNR  [▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░]  16 dB",                                  sigDm, UpdateLast: true),
-            new(500,  "SNR  [▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░]  24 dB",                                  sigDm, UpdateLast: true),
-            new(500,  "SNR  [▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░]  31 dB",                                  sig,   UpdateLast: true),
+            new(400,  $"SNR  {Ui.LoadingBar(0,  30)}   0 dB",                                           sigDm),
+            new(500,  $"SNR  {Ui.LoadingBar(7,  30)}   8 dB",                                           sigDm, UpdateLast: true),
+            new(500,  $"SNR  {Ui.LoadingBar(14, 30)}  16 dB",                                           sigDm, UpdateLast: true),
+            new(500,  $"SNR  {Ui.LoadingBar(21, 30)}  24 dB",                                           sigDm, UpdateLast: true),
+            new(500,  $"SNR  {Ui.LoadingBar(28, 30)}  31 dB",                                           sig,   UpdateLast: true),
             new(400,  "CARRIER LOCK ......................................... OK",                         phos),
             new(500,  "",                                                                                 proksBdr),
 

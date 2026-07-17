@@ -12,6 +12,7 @@ public sealed class CommsSection : IBaseSection
     private CommState _state = CommState.List;
 
     private readonly CommsRepository  _repo;
+    private readonly MemoryRepository _memory;
     private readonly OperatorAccount  _account;
     private readonly OperatorProgress _progress;
     private readonly IAudioService    _audio;
@@ -58,13 +59,14 @@ public sealed class CommsSection : IBaseSection
     private const int LeftI  = LeftW - 2;   // 42
     private const int Gap    = 2;
 
-    public CommsSection(OperatorAccount account, CommsRepository repo, OperatorProgress progress, IAudioService audio)
+    public CommsSection(OperatorAccount account, CommsRepository repo, MemoryRepository memory, OperatorProgress progress, IAudioService audio)
     {
+        _memory   = memory;
         _account  = account;
         _repo     = repo;
         _progress = progress;
         _audio    = audio;
-        _inbox    = _repo.GetInbox(_progress.Sol);
+        _inbox    = _repo.GetInbox(_progress.Sol, _memory);
     }
 
     // ── Update ───────────────────────────────────────────────────────────────
@@ -140,7 +142,7 @@ public sealed class CommsSection : IBaseSection
         _scrollOffset     = 0;
         _lastRightInnerW  = 0;
         _repo.MarkThreadRead(root.Id);
-        _inbox = _repo.GetInbox(_progress.Sol);
+        _inbox = _repo.GetInbox(_progress.Sol, _memory);
         _state = CommState.Reading;
     }
 
@@ -175,7 +177,7 @@ public sealed class CommsSection : IBaseSection
     {
         if (_chosenOption == null || _chosenForMsgId == null || _rootMessage == null) return;
         _repo.CommitReply(_chosenForMsgId, _chosenOption.Id, _chosenOption.Unlocks);
-        _inbox = _repo.GetInbox(_progress.Sol);
+        _inbox = _repo.GetInbox(_progress.Sol, _memory);
         OpenMessage(_rootMessage);
         _scrollOffset = int.MaxValue;
     }

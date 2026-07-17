@@ -19,6 +19,11 @@ public sealed class MissionState
 
     // Labels of bases the operator has reached. Base 1 (home) is always known.
     public List<string> DiscoveredBases { get; set; } = ["1"];
+
+    // Rolled once from deposits.yaml then frozen (empty = not yet rolled).
+    public List<DepositState> Deposits { get; set; } = [];
+    public List<string> ExtractedFileIds { get; set; } = [];
+    public List<string> RevealedFileIds { get; set; } = [];   // hidden deposits uncovered (convoy manifest)
 }
 
 public sealed class MarkState
@@ -26,4 +31,16 @@ public sealed class MarkState
     public string Name { get; set; } = "";
     public int X { get; set; }
     public int Y { get; set; }
+}
+
+public sealed class DepositState
+{
+    public string Kind     { get; set; } = "";
+    public int    X        { get; set; }
+    public int    Y        { get; set; }
+    public string FileId   { get; set; } = "";
+    public int    Tier     { get; set; } = 1;
+    public bool   Hidden   { get; set; }
+    public int?   SolStart { get; set; }
+    public int?   SolEnd   { get; set; }
 }

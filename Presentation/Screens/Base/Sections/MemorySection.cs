@@ -397,7 +397,14 @@ public sealed class MemorySection : IBaseSection
                 ? _defragCur : _repo.GetLayout(StorageLocation.Local),
         };
 
-        RenderTapeSection(buffer, tapeStart, innerW, displayLayouts);
+        // The file currently selected in the list gets its blocks highlighted in
+        // the allocation map above — so picking a file shows you where it lives.
+        bool selInList = _state is MemState.FileList or MemState.FileRead
+                                 or MemState.SendConfirm or MemState.DeleteConfirm;
+        string? highlightId = selInList && _listIdx >= 0 && _listIdx < _listFiles.Count
+            ? _listFiles[_listIdx].Id : null;
+
+        RenderTapeSection(buffer, tapeStart, innerW, displayLayouts, highlightId);
         RenderFileListSection(buffer, listHdrRow, listStart, innerW);
 
         if (_state == MemState.TapeSelect)
@@ -421,7 +428,7 @@ public sealed class MemorySection : IBaseSection
     // ── tape section ──────────────────────────────────────────────────────────
 
     private void RenderTapeSection(IRenderBuffer buffer, int startRow, int innerW,
-        Dictionary<StorageLocation, List<string?>> layouts)
+        Dictionary<StorageLocation, List<string?>> layouts, string? highlightId)
     {
         int x   = 2;
         int row = startRow;
@@ -494,7 +501,7 @@ public sealed class MemorySection : IBaseSection
                     buffer.WriteAt(cx, hRow, $"   [!] FRAG {frag}%", ExoColors.FaultText);
 
                 int rulerRow = row + 2;
-                RenderTapeLine(buffer, x + 2, tRow, rulerRow, innerW - x - 3, layout, files);
+                RenderTapeLine(buffer, x + 2, tRow, rulerRow, innerW - x - 3, layout, files, highlightId);
 
                 row += 3;
             }
@@ -548,16 +555,18 @@ public sealed class MemorySection : IBaseSection
     }
 
     private void RenderTapeLine(IRenderBuffer buffer, int x, int y, int rulerRow, int maxW,
-        List<string?> layout, List<MemoryFile> files)
+        List<string?> layout, List<MemoryFile> files, string? highlightId)
     {
+        // Blocks are labelled by file TYPE (GEO/SIG/LOG/...), not the file name —
+        // the allocation map reads as a map of what KIND of data sits where.
         var fileLabels = new Dictionary<string, string>();
         foreach (string? fileId in layout.Where(id => id != null).Distinct())
         {
             var file = files.FirstOrDefault(f => f.Id == fileId);
             if (file == null) continue;
-            fileLabels[fileId!] = (file.DisplayName.Length > LW
-                ? file.DisplayName[..LW]
-                : file.DisplayName.PadRight(LW)).ToUpper();
+            fileLabels[fileId!] = (file.Type.Length > LW
+                ? file.Type[..LW]
+                : file.Type.PadRight(LW)).ToUpper();
         }
 
         // Build runs
@@ -599,7 +608,7 @@ public sealed class MemorySection : IBaseSection
                     ? label[..contentW]
                     : label + new string('─', contentW - label.Length);
                 seg = "[" + content + "]";
-                col = ExoColors.ProksText;
+                col = id == highlightId ? ExoColors.PhosphorText : ExoColors.ProksText;
             }
 
             int avail = x + maxW - 1 - curX;

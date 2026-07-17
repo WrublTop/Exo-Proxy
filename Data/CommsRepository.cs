@@ -61,9 +61,37 @@ public class CommsRepository
         }
     }
 
-    // Returns root messages visible in the inbox for the given SOL.
-    public List<CommsMessage> GetInbox(int currentSol) =>
-        _all.Where(m => !m.Locked && ParseSol(m.Sol) <= currentSol).ToList();
+    // Root messages visible for the SOL. A message may also carry an evidence gate
+    // (requires_file / requires_synced); reveal is sticky once the gate passes.
+    public List<CommsMessage> GetInbox(int currentSol, MemoryRepository memory)
+    {
+        var result = new List<CommsMessage>();
+        bool dirty = false;
+
+        foreach (var m in _all)
+        {
+            if (m.Locked || ParseSol(m.Sol) > currentSol) continue;
+
+            bool gated = m.RequiresFile.Length > 0 || m.RequiresSynced.Length > 0;
+            if (!gated) { result.Add(m); continue; }
+
+            bool satisfied =
+                (m.RequiresFile.Length   == 0 || memory.HasFileAnywhere(m.RequiresFile)) &&
+                (m.RequiresSynced.Length == 0 || memory.IsSynced(m.RequiresSynced));
+
+            if (satisfied && !_state.RevealedMessages.Contains(m.Id))
+            {
+                _state.RevealedMessages.Add(m.Id);
+                dirty = true;
+            }
+
+            if (satisfied || _state.RevealedMessages.Contains(m.Id))
+                result.Add(m);
+        }
+
+        if (dirty) Save();
+        return result;
+    }
 
     private static int ParseSol(string sol) =>
         int.TryParse(sol.Replace("SOL", "").Trim(), out int n) ? n : 0;
@@ -107,9 +135,8 @@ public class CommsRepository
     public CommsMessage? GetMessage(string id) =>
         _all.FirstOrDefault(m => m.Id == id);
 
-    // Follows the reply chain from rootId.
-    // Returns: the ordered chain of messages, any pending reply options, and
-    // the ID of the message those options belong to.
+    // Follows the reply chain from rootId → (ordered chain, pending reply options,
+    // the message id those options belong to).
     public (List<CommsMessage> Chain,
             List<ReplyOption>? PendingOptions,
             string? PendingMessageId) BuildThread(string rootId)

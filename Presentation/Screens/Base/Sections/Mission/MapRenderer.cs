@@ -18,7 +18,8 @@ public static class MapRenderer
     private const int RulerW = 6;   // left ruler: signed Y label + gap
     private const int RulerH = 1;   // top ruler: X labels
 
-    public static void Render(IRenderBuffer map, MissionWorld world, bool massActive, int cellW, int cellH)
+    public static void Render(IRenderBuffer map, MissionWorld world, bool massActive,
+        bool thermalActive, bool emActive, int cellW, int cellH, int currentSol, double nowSeconds)
     {
         int plotW = map.Width  - RulerW;
         int plotH = map.Height - RulerH;
@@ -127,6 +128,11 @@ public static class MapRenderer
             }
         }
 
+        // Convoy patrol track — drawn through the SAME edge->box-glyph system as
+        // the sectors, layered above the rover trail but below the sector borders.
+        if (world.HasConvoy)
+            DrawConvoyTrack(map, world.ConvoyPath, camX, camY, plotW, plotH, cellW, cellH);
+
         // Survey-sector overlay — always on, independent of the active sensor,
         // so the operator keeps a labelled reference frame even when driving
         // blind. Drawn over the terrain, under the rover/base markers.
@@ -138,12 +144,41 @@ public static class MapRenderer
             foreach (var m in world.Marks)
                 DrawMarker(map, m.X, m.Y, camX, camY, plotW, plotH, cellW, cellH, "[" + m.Name + "]", ExoColors.PhosphorText);
 
+        // Deposits only show up once the matching sensor reveals them — that's
+        // the whole point of running THERMAL/EM instead of driving blind.
+        // Extracted (or, for EM, expired-past-sol_end) deposits never reappear.
+        if (thermalActive)
+            foreach (var d in world.Deposits)
+                if (d.Kind == "THERMAL" && world.IsDepositLive(d, currentSol))
+                    DrawMarker(map, d.X, d.Y, camX, camY, plotW, plotH, cellW, cellH, "[PX]", ExoColors.SignalDim);
+
+        // EM markers dim and blink slower toward sol_end — a dying transmission.
+        // Blink is a pure function of wall time (skip the draw on the off-half).
+        if (emActive)
+            foreach (var d in world.Deposits)
+                if (d.Kind == "EM" && world.IsDepositLive(d, currentSol))
+                {
+                    var (color, blinkMs) = EmShade(d, currentSol);
+                    bool visible = (long)(nowSeconds * 1000) / blinkMs % 2 == 0;
+                    if (visible)
+                        DrawMarker(map, d.X, d.Y, camX, camY, plotW, plotH, cellW, cellH, "[EM]", color);
+                }
+
         // Survey bases — base 1 is home; 2 and 3 read dim until the rover reaches
         // them. The rover (the operator's own avatar) takes the phosphor colour.
         foreach (var b in MissionWorld.Bases)
             DrawMarker(map, b.X, b.Y, camX, camY, plotW, plotH, cellW, cellH,
                 "[BASE " + b.Label + "]",
                 world.IsBaseDiscovered(b.Label) ? ExoColors.ProksPale : ExoColors.ProksBorder);
+
+        // The supply runner rides on top of its track — same colour as the other
+        // field markers, oriented to how it's currently travelling.
+        if (world.HasConvoy)
+        {
+            var (cdx, cdy) = world.ConvoyHeading();
+            DrawConvoyMarker(map, world.ConvoyX, world.ConvoyY, camX, camY, plotW, plotH, cellW, cellH,
+                             vertical: cdx == 0 && cdy != 0, ExoColors.SignalDim);
+        }
 
         DrawMarker(map, world.RoverX, world.RoverY, camX, camY, plotW, plotH, cellW, cellH, "[SR]", ExoColors.PhosphorBright);
     }
@@ -263,6 +298,46 @@ public static class MapRenderer
             map.WriteAt(RulerW + x, RulerH + y, text, col);
     }
 
+    // The convoy track — same edge->box-glyph foundation as the sectors, one dim tone.
+    private static void DrawConvoyTrack(IRenderBuffer map, IReadOnlyList<(int X, int Y)> path,
+        int camX, int camY, int plotW, int plotH, int cellW, int cellH)
+    {
+        if (path.Count < 2) return;
+        var cells = new Dictionary<(int X, int Y), int>();
+        AccumulateEdges(cells, path, closed: true, camX, camY, plotW, plotH, cellW, cellH);
+        var fade = ExoColors.FadeSignal;
+        string rail = fade.Length > 3 ? fade[3] : ExoColors.SignalDim;   // muted EM green
+        foreach (var (pos, mask) in cells)
+            map.WriteAt(RulerW + pos.X, RulerH + pos.Y, LineGlyph(mask), rail);
+    }
+
+    // Shared edge foundation: ORs a direction bit into each cell an axis-aligned
+    // edge crosses, so LineGlyph resolves corners/tees. Diagonals are ignored.
+    private static void AccumulateEdges(Dictionary<(int X, int Y), int> cells,
+        IReadOnlyList<(int X, int Y)> pts, bool closed,
+        int camX, int camY, int plotW, int plotH, int cellW, int cellH)
+    {
+        void Mark(int x, int y, int bit)
+        {
+            if (x < 0 || x >= plotW || y < 0 || y >= plotH) return;
+            cells[(x, y)] = (cells.TryGetValue((x, y), out var m) ? m : 0) | bit;
+        }
+
+        int n = pts.Count;
+        int last = closed ? n : n - 1;
+        for (int i = 0; i < last; i++)
+        {
+            var a = pts[i];
+            var b = pts[(i + 1) % n];
+            int ax = a.X * cellW - camX, ay = -a.Y * cellH - camY;
+            int bx = b.X * cellW - camX, by = -b.Y * cellH - camY;
+            if (ay == by)
+                for (int x = Math.Min(ax, bx); x < Math.Max(ax, bx); x++) { Mark(x, ay, E); Mark(x + 1, ay, W); }
+            else if (ax == bx)
+                for (int y = Math.Min(ay, by); y < Math.Max(ay, by); y++) { Mark(ax, y, S); Mark(ax, y + 1, N); }
+        }
+    }
+
     // Direction bits and the box-drawing glyph each combination resolves to. A
     // "line layer" (the rover's trail, the sector outlines) ORs a bit into a cell
     // for every neighbour the line continues toward; LineGlyph then turns that
@@ -272,6 +347,46 @@ public static class MapRenderer
     private const int N = 1, E = 2, S = 4, W = 8;
     private const string LineGlyphs = " │─└││┌├─┘─┴┐┤┬┼";
     private static char LineGlyph(int mask) => LineGlyphs[mask & 15];
+
+    // Colour + blink keyed off how much of the sol window is left: baseline is the
+    // proks green (SignalDim), dimming and slowing toward expiry.
+    private static (string Color, int BlinkMs) EmShade(MissionWorld.Deposit d, int currentSol)
+    {
+        if (d.SolStart is null) return (ExoColors.SignalDim, int.MaxValue);
+        double span = Math.Max(1, d.SolEnd!.Value - d.SolStart.Value);
+        double frac = (d.SolEnd.Value - currentSol) / span;
+        var fade = ExoColors.FadeSignal;   // black → bright green; low indices are the dim tail
+        if (frac > 0.5)  return (ExoColors.SignalDim, 900);   // proks-icon green, freshly live
+        if (frac > 0.15) return (fade[3], 1400);              // dimmer green
+        return (fade[2], 2200);                               // dimmest — about to expire
+    }
+
+    // The supply runner, flipped to its heading: a capped double-line car ╠══╣ on
+    // E/W legs, the same car turned upright ╦║╩ (three rows) on N/S legs.
+    private static void DrawConvoyMarker(IRenderBuffer map, int wx, int wy, int camX, int camY,
+                                         int plotW, int plotH, int cellW, int cellH, bool vertical, string col)
+    {
+        int sx = wx * cellW - camX;
+        int sy = -wy * cellH - camY;
+
+        void Put(int cx, int cy, char ch)
+        {
+            if (cx < 0 || cx >= plotW || cy < 0 || cy >= plotH) return;
+            map.WriteAt(RulerW + cx, RulerH + cy, ch.ToString(), col);
+        }
+
+        if (vertical)
+        {
+            Put(sx, sy - 1, '╦');
+            Put(sx, sy,     '║');
+            Put(sx, sy + 1, '╩');
+        }
+        else
+        {
+            const string car = "╠══╣";                 // centred (width 4) on the tile
+            for (int i = 0; i < car.Length; i++) Put(sx - 2 + i, sy, car[i]);
+        }
+    }
 
     private static void DrawMarker(IRenderBuffer map, int wx, int wy, int camX, int camY,
                                    int plotW, int plotH, int cellW, int cellH, string marker, string color)
